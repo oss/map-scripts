@@ -1,0 +1,178 @@
+#!/usr/bin/env python
+
+import urllib
+import urllib2
+import xml.etree.ElementTree as ET
+import xml.dom.minidom
+from shapely.geometry import Polygon
+from shapely.geometry import box
+from shapely.wkt import loads
+from datetime import datetime
+
+from sys import argv, exit
+import smtplib, os, os.path
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+from email.MIMEBase import MIMEBase
+from email.Utils import formatdate
+from email import Encoders
+
+
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
+
+def base_api_url(debug=False):
+    normal = 'http://api.openstreetmap.org'  
+    debug_s = 'http://api06.dev.openstreetmap.org'
+    return normal if debug == False else debug_s
+
+
+def bbox_url(debug=False, *args):
+    """Get the osm api url for bounding boxes. To use the debug
+    api, set debug to true. Returns a string that should be formated
+    with each coordinate
+    """
+    format_str = '/api/0.6/changesets?bbox={0},{1},{2},{3}&time={4}'
+    return base_api_url(debug) + format_str.format(*args)
+
+
+def nominatim_url(query, **kwargs):
+    nominatimurl = 'http://nominatim.openstreetmap.org/search/'
+    if query is not None:
+        nominatimurl += query
+    if not kwargs:
+        return nominatimurl
+    nominatimurl += '?'
+    for kwarg in kwargs:
+        if nominatimurl[len(nominatimurl)-1] != '?':
+            nominatimurl += '&'
+        nominatimurl += kwarg + '=' + kwargs[kwarg]
+    return nominatimurl
+
+
+def parse_api_url(url):
+    f = urllib2.urlopen(url)
+    return ET.fromstring(f.read())
+
+
+def get_by_name(name, format='xml', bbox=None):
+    name_search = None
+    if bbox is not None:
+        str_bbox = ""
+        for x in bbox:
+            if x == bbox[3]:
+                str_bbox += str(x)
+            else:
+                str_bbox += str(x) + ','
+        name_search = parse_api_url(nominatim_url(name,
+                                                  format=format,
+                                                  viewboxlbrt=str_bbox,
+                                                  polygon_text="1"))
+    else:
+        name_search = parse_api_url(nominatim_url(name, format=format,
+                                                  polygon_text="1"))
+    return name_search
+
+
+def print_ET(root):
+    print xml.dom.minidom.parseString(ET.tostring(root)).toprettyxml(),
+
+
+def name_to_polygon(name, bbox=None):
+    name_root = get_by_name(urllib.quote(name), bbox=bbox)
+    polygon = loads(name_root[0].attrib['geotext'])
+    return polygon
+
+
+def get_change_fp(change):
+    return urllib2.urlopen(base_api_url() + '/api/0.6/changeset/' + changeset.attrib['id'] + '/download')
+
+
+def mkdir_ask(changes):
+    ret = []
+    for change in changes:
+        fname = os.path.join('/army/pending', str(change.attrib['id']) + '.osc')
+        if not os.path.isfile(fname):
+            f = open(fname, 'w')
+            f.write(get_change_fp(change).read())
+            f.close()
+            ret.append(fname)
+    return ret
+
+
+def send_mail(changes, address):
+    msg = MIMEMultipart()
+    msg['From'] = 'phantoon'
+    msg['To'] = address
+    msg['Date'] = formatdate(localtime=True)
+    msg['Subject'] = "Changes for Rutgers maps need approval"
+    msg.attach(MIMEText("The attached files need approval, run '/usr/bin/commit-changes' on phantoon to allow or deny changes"))
+    for change in changes:
+        part = MIMEBase('text', 'xml')
+        part.set_payload(open(change, "r").read())
+        Encoders.encode_base64(part)
+        part.add_header('Content-Disposition', 'attachment; filename="{0}"'.format(os.path.basename(change)))
+        msg.attach(part)
+    smtp = smtplib.SMTP('localhost')
+    smtp.sendmail('phantoon', address, msg.as_string())
+    smtp.close()
+
+
+if __name__ == '__main__':
+
+    # sanitize command line arguments
+    if len(argv) != 2:
+        print 'Usage: gen-changes <name-of-inputfile>'
+        exit(1)
+
+    # get the name of the input file
+    inputFile = argv[1]
+    
+    # get the firstline of the file
+    with open(inputFile, 'r') as inHandle:
+        timestamp = inHandle.readline().rstrip('\n')
+
+    changesets = parse_api_url(bbox_url(False,
+                                        -75.591, 38.882,
+                                        -73.867, 41.414,
+                                        timestamp))
+    new_jersey = name_to_polygon("New Jersey")
+
+    rutgers_bbox = [-74.5343, 40.4164, -74.3520, 40.5673]
+    busch = name_to_polygon("Rutgers Busch Campus", bbox=rutgers_bbox)
+    livi = name_to_polygon("Rutgers Livingston Campus", bbox=rutgers_bbox)
+    college_ave = name_to_polygon("Rutgers University - New Brunswick",
+                                  bbox=rutgers_bbox)
+    rutgers = [busch, livi, college_ave]
+
+    osmdate_format = "%Y-%m-%dT%H:%M:%SZ"
+
+    apply_immediately = []
+    max_changetime = datetime.min
+    ask_permission = []
+    closed_changes = [x for x in changesets.findall('changeset') if x.attrib['open'] == "false"]
+    for changeset in closed_changes:
+        changetime = datetime.strptime(changeset.attrib['closed_at'], osmdate_format)
+        if changetime > max_changetime:
+            max_changetime = changetime
+        p = changeset.attrib
+        minx = float(p['min_lon'])
+        miny = float(p['min_lat'])
+        maxx = float(p['max_lon'])
+        maxy = float(p['max_lat'])
+        bbox = box(minx, miny, maxx, maxy)
+        if bbox.intersects(new_jersey):
+            for campus in rutgers:
+                if bbox.intersects(campus):
+                    ask_permission.append(changeset)
+                    break
+            if changeset not in ask_permission:
+                apply_immediately.append(changeset)
+    with open(inputFile, 'w') as f:
+        f.write(max_changetime.strftime(osmdate_format))
+    for changeset in apply_immediately:
+        f = open('/army/changes/' + str(changeset.attrib['id']) + '.osc', 'w')
+        f.write(get_change_fp(changeset).read())
+        f.close()
+    changes = mkdir_ask(ask_permission)
+    send_mail(changes, 'mwr54@nbcs.rutgers.edu')

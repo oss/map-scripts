@@ -1,0 +1,40 @@
+#!/bin/bash
+
+PREFIX=/army
+STATUS=0
+USAGE="Usage: commit-changes [all] [ids]"
+
+if [ $# -eq 0 ];
+then
+    echo $USAGE 1>&2
+    exit 1
+fi
+
+if [ $1 = "-h" ];
+then
+    echo $USAGE
+    exit 0
+fi
+
+if [ $1 = "all" ];
+then
+    mv $PREFIX/pending/* $PREFIX/changes > /dev/null 2>&1
+    echo "Success!"
+    exit 0
+fi
+
+for id in "$@"
+do
+    FROM=$PREFIX/pending/${id}.osc
+    TO=$PREFIX/changes/${id}.osc
+    if [ -f $FROM ];
+    then
+        mv $FROM $TO
+    else
+        echo "$id is not a valid id" 1>&2
+        STATUS=1
+        continue
+    fi
+done
+[ ! $STATUS ] && echo "Success!"
+exit $STATUS
