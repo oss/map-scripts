@@ -2,12 +2,16 @@
 
 import urllib
 import urllib2
+import shutil
+import subprocess
 import xml.etree.ElementTree as ET
 import xml.dom.minidom
 from shapely.geometry import Polygon
 from shapely.geometry import box
 from shapely.wkt import loads
 from datetime import datetime
+from lxml.cssselect import CSSSelector
+import lxml.html
 
 from sys import argv, exit
 import smtplib, os, os.path
@@ -25,15 +29,6 @@ def base_api_url(debug=False):
     normal = 'http://api.openstreetmap.org'  
     debug_s = 'http://api06.dev.openstreetmap.org'
     return normal if debug == False else debug_s
-
-
-def bbox_url(debug=False, *args):
-    """Get the osm api url for bounding boxes. To use the debug
-    api, set debug to true. Returns a string that should be formated
-    with each coordinate
-    """
-    format_str = '/api/0.6/changesets?bbox={0},{1},{2},{3}&time={4}'
-    return base_api_url(debug) + format_str.format(*args)
 
 
 def nominatim_url(query, **kwargs):
@@ -118,24 +113,23 @@ def send_mail(changes, address):
     smtp.close()
 
 
+def get_new_jersey(outfile):
+    h = lxml.html.fromstring(urllib2.urlopen("http://download.geofabrik.de/north-america/us/new-jersey.html").read())
+    table = h.cssselect('table#subregions')[0]
+    output = ""
+    for tr in table[1:]:
+        if tr[0][0].text == "new-jersey-latest.osm.pbf":
+            output = tr[1].text
+    with open(outfile, 'w') as f:
+        f.write(urllib2.urlopen("http://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf").read())
+
+
+def get_bbox(node, bboxes):
+    pass
+
+
 if __name__ == '__main__':
 
-    # sanitize command line arguments
-    if len(argv) != 2:
-        print 'Usage: gen-changes <name-of-inputfile>'
-        exit(1)
-
-    # get the name of the input file
-    inputFile = argv[1]
-    
-    # get the firstline of the file
-    with open(inputFile, 'r') as inHandle:
-        timestamp = inHandle.readline().rstrip('\n')
-
-    changesets = parse_api_url(bbox_url(False,
-                                        -75.591, 38.882,
-                                        -73.867, 41.414,
-                                        timestamp))
     new_jersey = name_to_polygon("New Jersey")
 
     rutgers_bbox = [-74.5343, 40.4164, -74.3520, 40.5673]
@@ -145,7 +139,23 @@ if __name__ == '__main__':
                                   bbox=rutgers_bbox)
     rutgers = [busch, livi, college_ave]
 
+    shutil.move('/army/new-jersey-latest.osm.pbf', '/army/new-jersey-old.osm.pbf')
+    get_new_jersey('/army/new-jersey-latest.osm.pbf')
+    subprocess.call('osmosis', '--read-pbf', 'file="/army/new-jersey-old.osm.pbf"', '--read-pbf', 'file="/army/new-jersey-latest.osm.pbf"', '--derive-change', '--write-xml-change', 'file="/army/diff.osc"')
+    os.remove('/army/new-jersey-old.osm.pbf')
+
+    changes = ET.parse('/army/diff.osc')
+
     osmdate_format = "%Y-%m-%dT%H:%M:%SZ"
+
+    bboxes = {}
+
+    for change in changes:
+        for data in change:
+            if child.tag == "node":
+                lat = int(child.attrib['lat'])
+                lon = int(child.attrib['lon'])
+                bboxes[child.attrib['id']] = (lat, lon, lat, lon)
 
     apply_immediately = []
     max_changetime = datetime.min
