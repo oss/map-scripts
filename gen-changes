@@ -124,8 +124,28 @@ def get_new_jersey(outfile):
         f.write(urllib2.urlopen("http://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf").read())
 
 
+def max_bbox(bbox1, bbox2):
+    return [min(bbox1[0], bbox2[0]),
+            min(bbox1[1], bbox2[1]),
+            max(bbox1[2], bbox2[2]),
+            max(bbox1[3], bbox2[3])]
+
+
 def get_bbox(node, bboxes):
-    pass
+    bbox = [-180, -90, 180, 90]
+    if node.tag == "node":
+        lat = int(node.attrib['lat'])
+        lon = int(node.attrib['lon'])
+        bboxes[node.attrib['id']] = (lat, lon, lat, lon)
+    elif node.tag == "way":
+        for nd in node.findall('nd'):
+            bbox = max_bbox(bbox, bboxes[nd.attrib['ref']])
+        bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
+    elif node.tag == "relation":
+        for nd in node.findall('member'):
+            bbox = max_bbox(bbox, bboxes[nd.attrib['ref']])
+        bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
+    return box(*bboxes[node.attrib['id']])
 
 
 if __name__ == '__main__':
@@ -148,41 +168,61 @@ if __name__ == '__main__':
 
     osmdate_format = "%Y-%m-%dT%H:%M:%SZ"
 
+    apply_i = ET.Element('osmChange')
+    apply_i.set('version', '0.6')
+    ET.SubElement(apply_i, 'create')
+    ET.SubElement(apply_i, 'modify')
+    ET.SubElement(apply_i, 'del')
+
+    ask_p = ET.Element('osmChange')
+    ask_p.set('version', '0.6')
+    ET.SubElement(ask_p, 'create')
+    ET.SubElement(ask_p, 'modify')
+    ET.SubElement(ask_p, 'del')
+
     bboxes = {}
 
     for change in changes:
-        for data in change:
-            if child.tag == "node":
-                lat = int(child.attrib['lat'])
-                lon = int(child.attrib['lon'])
-                bboxes[child.attrib['id']] = (lat, lon, lat, lon)
-
-    apply_immediately = []
-    max_changetime = datetime.min
-    ask_permission = []
-    closed_changes = [x for x in changesets.findall('changeset') if x.attrib['open'] == "false"]
-    for changeset in closed_changes:
-        changetime = datetime.strptime(changeset.attrib['closed_at'], osmdate_format)
-        if changetime > max_changetime:
-            max_changetime = changetime
-        p = changeset.attrib
-        minx = float(p['min_lon'])
-        miny = float(p['min_lat'])
-        maxx = float(p['max_lon'])
-        maxy = float(p['max_lat'])
-        bbox = box(minx, miny, maxx, maxy)
-        if bbox.intersects(new_jersey):
+        for node in change:
+            bbox = get_bbox(node, bboxes)
             for campus in rutgers:
+                append_osc = apply_i
                 if bbox.intersects(campus):
-                    ask_permission.append(changeset)
-                    break
-            if changeset not in ask_permission:
-                apply_immediately.append(changeset)
-    with open(inputFile, 'w') as f:
-        f.write(max_changetime.strftime(osmdate_format))
-    for changeset in apply_immediately:
-        f = open('/army/changes/' + str(changeset.attrib['id']) + '.osc', 'w')
-        f.write(get_change_fp(changeset).read())
-        f.close()
-    changes = mkdir_ask(ask_permission)
-    send_mail(changes, 'mwr54@nbcs.rutgers.edu')
+                    append_osc = ask_p
+                if data.tag == "create":
+                    append_osc[0].append(node)
+                elif data.tag == "modify":
+                    append_osc[1].append(node)
+                else:
+                    append_osc[2].append(node)
+
+    print ET.dump(apply_i)
+
+    #max_changetime = datetime.min
+    #ask_permission = []
+    #closed_changes = [x for x in changesets.findall('changeset') if x.attrib['open'] == "false"]
+    #for changeset in closed_changes:
+    #    changetime = datetime.strptime(changeset.attrib['closed_at'], osmdate_format)
+    #    if changetime > max_changetime:
+    #        max_changetime = changetime
+    #    p = changeset.attrib
+    #    minx = float(p['min_lon'])
+    #    miny = float(p['min_lat'])
+    #    maxx = float(p['max_lon'])
+    #    maxy = float(p['max_lat'])
+    #    bbox = box(minx, miny, maxx, maxy)
+    #    if bbox.intersects(new_jersey):
+    #        for campus in rutgers:
+    #            if bbox.intersects(campus):
+    #                ask_permission.append(changeset)
+    #                break
+    #        if changeset not in ask_permission:
+    #            apply_immediately.append(changeset)
+    #with open(inputFile, 'w') as f:
+    #    f.write(max_changetime.strftime(osmdate_format))
+    #for changeset in apply_immediately:
+    #    f = open('/army/changes/' + str(changeset.attrib['id']) + '.osc', 'w')
+    #    f.write(get_change_fp(changeset).read())
+    #    f.close()
+    #changes = mkdir_ask(ask_permission)
+    #send_mail(changes, 'mwr54@nbcs.rutgers.edu')
