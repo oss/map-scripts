@@ -161,7 +161,7 @@ if __name__ == '__main__':
 
     shutil.move('/army/new-jersey-latest.osm.pbf', '/army/new-jersey-old.osm.pbf')
     get_new_jersey('/army/new-jersey-latest.osm.pbf')
-    subprocess.call('osmosis', '--read-pbf', 'file="/army/new-jersey-old.osm.pbf"', '--read-pbf', 'file="/army/new-jersey-latest.osm.pbf"', '--derive-change', '--write-xml-change', 'file="/army/diff.osc"')
+    subprocess.call(['osmosis', '--read-pbf', 'file="/army/new-jersey-old.osm.pbf"', '--read-pbf', 'file="/army/new-jersey-latest.osm.pbf"', '--derive-change', '--write-xml-change', 'file="/army/diff.osc"'])
     os.remove('/army/new-jersey-old.osm.pbf')
 
     changes = ET.parse('/army/diff.osc')
