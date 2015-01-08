@@ -134,7 +134,7 @@ if __name__ == '__main__':
     print "Getting new New Jersey file"
     get_new_jersey('/army/new-jersey-latest.osm.pbf')
     print "Calling osmosis"
-    subprocess.check_call(['osmosis', '--read-pbf', 'file="/army/new-jersey-old.osm.pbf"', '--read-pbf', 'file="/army/new-jersey-latest.osm.pbf"', '--derive-change', '--write-xml-change', 'file="/army/diff.osc"'])
+    subprocess.check_call(['osmosis', '--read-pbf', 'file=/army/new-jersey-old.osm.pbf', '--read-pbf', 'file=/army/new-jersey-latest.osm.pbf', '--derive-change', '--write-xml-change', 'file=/army/diff.osc'])
     #os.remove('/army/new-jersey-old.osm.pbf')
 
     changes = ET.parse('/army/diff.osc')
