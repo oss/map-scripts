@@ -104,8 +104,8 @@ def max_bbox(bbox1, bbox2):
 def get_bbox(node, bboxes):
     bbox = [-180, -90, 180, 90]
     if node.tag == "node":
-        lat = int(node.attrib['lat'])
-        lon = int(node.attrib['lon'])
+        lat = float(node.attrib['lat'])
+        lon = float(node.attrib['lon'])
         bboxes[node.attrib['id']] = (lat, lon, lat, lon)
     elif node.tag == "way":
         for nd in node.findall('nd'):
