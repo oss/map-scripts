@@ -164,9 +164,9 @@ if __name__ == '__main__':
                 append_osc = apply_i
                 if bbox.intersects(campus):
                     append_osc = ask_p
-                if data.tag == "create":
+                if node.tag == "create":
                     append_osc[0].append(node)
-                elif data.tag == "modify":
+                elif node.tag == "modify":
                     append_osc[1].append(node)
                 else:
                     append_osc[2].append(node)
