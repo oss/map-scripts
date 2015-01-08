@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     bboxes = {}
 
-    for change in changes:
+    for change in changes.getiterator():
         for node in change:
             bbox = get_bbox(node, bboxes)
             for campus in rutgers:
