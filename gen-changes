@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     bboxes = {}
 
-    for change in changes[0]:
+    for change in changes.getroot():
         print change.tag
         for node in change:
             print node.tag
