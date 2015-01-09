@@ -42,6 +42,10 @@ def parse_api_url(url):
     return ET.fromstring(f.read())
 
 
+def read_element(element, nid):
+    parse_api_url("http://api.openstreetmap.org/api/0.6/{0}/{1}".format(element, nid))
+
+
 def get_by_name(name, format='xml', bbox=None):
     name_search = None
     if bbox is not None:
@@ -109,13 +113,23 @@ def get_bbox(node, bboxes):
         bboxes[node.attrib['id']] = (lat, lon, lat, lon)
     elif node.tag == "way":
         for nd in node.findall('nd'):
-            bbox = max_bbox(bbox, bboxes[nd.attrib['ref']])
+            nd_box = None
+            try:
+                nd_box = bboxes[nd.attrib['ref']]
+            except KeyError:
+                nd_box = get_bbox(read_element("node", nd.attrib['ref'])[0], bboxes)
+            bbox = max_bbox(bbox, nd_box)
         bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
     elif node.tag == "relation":
         for nd in node.findall('member'):
+            nd_box = None
+            try:
+                nd_box = bboxes[nd.attrib['ref']]
+            except KeyError:
+                nd_box = get_bbox(read_element(nd.attrib['type'], nd.attrib['ref'])[0], bboxes)
             bbox = max_bbox(bbox, bboxes[nd.attrib['ref']])
         bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
-    return box(*bboxes[node.attrib['id']])
+    return bboxes[node.attrib['id']]
 
 
 if __name__ == '__main__':
@@ -135,8 +149,9 @@ if __name__ == '__main__':
     get_new_jersey('/army/new-jersey-latest.osm.pbf')
     print "Calling osmosis"
     subprocess.check_call(['osmosis', '--read-pbf', 'file=/army/new-jersey-old.osm.pbf', '--read-pbf', 'file=/army/new-jersey-latest.osm.pbf', '--derive-change', '--write-xml-change', 'file=/army/diff.osc'])
-    #os.remove('/army/new-jersey-old.osm.pbf')
+    os.remove('/army/new-jersey-old.osm.pbf')
 
+    print "Parsing diff"
     changes = ET.parse('/army/diff.osc')
 
     osmdate_format = "%Y-%m-%dT%H:%M:%SZ"
@@ -155,11 +170,12 @@ if __name__ == '__main__':
 
     bboxes = {}
 
+    print "Calculating bounding boxes"
     for change in changes.getroot():
         print change.tag
         for node in change:
             print node.tag
-            bbox = get_bbox(node, bboxes)
+            bbox = box(get_bbox(node, bboxes))
             for campus in rutgers:
                 append_osc = apply_i
                 if bbox.intersects(campus):
