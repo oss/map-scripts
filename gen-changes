@@ -175,7 +175,7 @@ if __name__ == '__main__':
         print change.tag
         for node in change:
             print node.tag
-            bbox = box(get_bbox(node, bboxes))
+            bbox = box(*get_bbox(node, bboxes))
             for campus in rutgers:
                 append_osc = apply_i
                 if bbox.intersects(campus):
