@@ -69,8 +69,10 @@ def nominatim_url(query, **kwargs):
 
 def parse_api_url(url):
     print url
-    with urllib2.urlopen(url) as f:
-        return ET.fromstring(f.read())
+    f = urllib2.urlopen(url)
+    root = ET.fromstring(f.read())
+    f.close()
+    return root
 
 
 def read_element(element, nid):
