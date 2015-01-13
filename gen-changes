@@ -52,6 +52,9 @@ class OSMChange:
     def get_delete(self):
         return self.osc[2]
 
+    def dump(self):
+        return ET.dump(self.osc)
+
 
 def nominatim_url(query, **kwargs):
     nominatimurl = 'http://nominatim.openstreetmap.org/search/'
@@ -207,4 +210,4 @@ if __name__ == '__main__':
                 else:
                     append_osc.get_delete().append(node)
 
-    print ET.dump(apply_i)
+    print apply_i.dump()
