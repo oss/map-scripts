@@ -214,6 +214,6 @@ if __name__ == '__main__':
                     append_osc.get_delete().append(node)
 
     with open('apply_i', 'w') as f:
-        f.write(apply_i)
+        f.write(str(apply_i))
     with open('ask_p', 'w') as f:
-        f.write(ask_p)
+        f.write(str(ask_p))
