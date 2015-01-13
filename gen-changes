@@ -44,13 +44,13 @@ class OSMChange:
         ET.SubElement(self.osc, 'delete')
 
     def get_create(self):
-        return self.osc.getroot()[0]
+        return self.osc[0]
 
     def get_modify(self):
-        return self.osc.getroot()[1]
+        return self.osc[1]
 
     def get_delete(self):
-        return self.osc.getroot()[2]
+        return self.osc[2]
 
 
 def nominatim_url(query, **kwargs):
