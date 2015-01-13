@@ -47,15 +47,12 @@ class OSMChange:
         return ET.tostring(self.osc)
 
     def get_create(self):
-        print self.osc[0].tag
         return self.osc[0]
 
     def get_modify(self):
-        print self.osc[1].tag
         return self.osc[1]
 
     def get_delete(self):
-        print self.osc[2].tag
         return self.osc[2]
 
     def dump(self):
@@ -207,6 +204,7 @@ if __name__ == '__main__':
                 append_osc = apply_i
                 if bbox.intersects(campus):
                     append_osc = ask_p
+                print node.tag
                 if node.tag == "create":
                     append_osc.get_create().append(node)
                 elif node.tag == "modify":
