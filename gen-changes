@@ -68,6 +68,7 @@ def nominatim_url(query, **kwargs):
 
 
 def parse_api_url(url):
+    print url
     with urllib2.urlopen(url) as f:
         return ET.fromstring(f.read())
 
@@ -139,23 +140,19 @@ def get_bbox(node, bboxes):
         lat = float(node.attrib['lat'])
         lon = float(node.attrib['lon'])
         bboxes[node.attrib['id']] = (lat, lon, lat, lon)
-    elif node.tag == "way":
-        for nd in node.findall('nd'):
-            nd_box = None
+    else:
+        find = "node"
+        if node.tag == "member":
+            find = "member"
+        for element in node.findall(find):
+            element_type = element.attrib['type']
+            if find == "node":
+                element_type = "node"
             try:
-                nd_box = bboxes[nd.attrib['ref']]
+                elem_box = bboxes[element.attrib['ref']]
             except KeyError:
-                nd_box = get_bbox(read_element("node", nd.attrib['ref'])[0], bboxes)
-            bbox = max_bbox(bbox, nd_box)
-        bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
-    elif node.tag == "relation":
-        for nd in node.findall('member'):
-            nd_box = None
-            try:
-                nd_box = bboxes[nd.attrib['ref']]
-            except KeyError:
-                nd_box = get_bbox(read_element(nd.attrib['type'], nd.attrib['ref'])[0], bboxes)
-            bbox = max_bbox(bbox, bboxes[nd.attrib['ref']])
+                elem_box = get_bbox(read_element(element_type, element.attrib['ref'])[0], bboxes)
+            bbox = max_bbox(bbox, elem_box)
         bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
     return bboxes[node.attrib['id']]
 
