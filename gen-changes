@@ -204,10 +204,9 @@ if __name__ == '__main__':
                 append_osc = apply_i
                 if bbox.intersects(campus):
                     append_osc = ask_p
-                print node.tag
-                if node.tag == "create":
+                if change.tag == "create":
                     append_osc.get_create().append(node)
-                elif node.tag == "modify":
+                elif change.tag == "modify":
                     append_osc.get_modify().append(node)
                 else:
                     append_osc.get_delete().append(node)
