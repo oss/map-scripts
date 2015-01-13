@@ -47,12 +47,15 @@ class OSMChange:
         return ET.tostring(self.osc)
 
     def get_create(self):
+        print self.osc[0].tag
         return self.osc[0]
 
     def get_modify(self):
+        print self.osc[1].tag
         return self.osc[1]
 
     def get_delete(self):
+        print self.osc[2].tag
         return self.osc[2]
 
     def dump(self):
@@ -198,9 +201,7 @@ if __name__ == '__main__':
 
     print "Calculating bounding boxes"
     for change in changes.getroot():
-        print change.tag
         for node in change:
-            print node.tag
             bbox = box(*get_bbox(node, bboxes))
             for campus in rutgers:
                 append_osc = apply_i
