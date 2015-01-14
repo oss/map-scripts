@@ -23,15 +23,20 @@ NJ_LATEST = ("http://download.geofabrik.de/"
                      "north-america/us/new-jersey-latest.osm.pbf")
 NJ_LATEST_PBF = '/army/new-jersey-latest.osm.pbf'
 NJ_OLD_PBF = '/army/new-jersey-old.osm.pbf'
+
+DIFF = '/army/diff.osc'
+CHANGES = '/army/changes.osc'
+PENDING = '/army/pending.osc'
+
 OSMOSIS_CMD = [
     'osmosis',
     '--read-pbf',
-    'file=/army/new-jersey-old.osm.pbf',
+    'file={0}'.format(NJ_OLD_PBF),
     '--read-pbf',
-    'file=/army/new-jersey-latest.osm.pbf',
+    'file={0}'.format(NJ_LATEST_PBF),
     '--derive-change',
     '--write-xml-change',
-    'file=/army/diff.osc'
+    'file={0}'.format(DIFF)
 ]
 
 
@@ -188,10 +193,10 @@ if __name__ == '__main__':
     subprocess.check_call(OSMOSIS_CMD)
 
     print "Removing old NJ file"
-    os.remove('/army/new-jersey-old.osm.pbf')
+    os.remove(NJ_OLD_PBF)
 
     print "Parsing diff"
-    changes = ET.parse('/army/diff.osc')
+    changes = ET.parse(DIFF)
 
     apply_i = OSMChange()
     ask_p   = OSMChange()
@@ -213,7 +218,7 @@ if __name__ == '__main__':
                 else:
                     append_osc.get_delete().append(node)
 
-    with open('/army/changes.osc', 'w') as f:
+    with open(CHANGES, 'w') as f:
         f.write(str(apply_i))
-    with open('/army/pending.osc', 'w') as f:
+    with open(PENDING, 'w') as f:
         f.write(str(ask_p))
