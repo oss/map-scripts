@@ -25,8 +25,8 @@ NJ_LATEST_PBF = '/army/new-jersey-latest.osm.pbf'
 NJ_OLD_PBF = '/army/new-jersey-old.osm.pbf'
 
 DIFF = '/army/diff.osc'
-CHANGES = '/army/changes.osc'
-PENDING = '/army/pending.osc'
+CHANGES = '/army/changes'
+PENDING = '/army/pending'
 
 OSMOSIS_CMD = [
     'osmosis',
@@ -166,10 +166,25 @@ def get_bbox(node, bboxes):
             try:
                 elem_box = bboxes[element.attrib['ref']]
             except KeyError:
-                elem_box = get_bbox(read_element(element_type, element.attrib['ref'])[0], bboxes)
+                elem_box = get_bbox(read_element(element_type,
+                    element.attrib['ref'])[0], bboxes)
             bbox = max_bbox(bbox, elem_box)
         bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
     return bboxes[node.attrib['id']]
+
+
+def lowest_avail_id(directory):
+    current_ids = set(
+        [int(os.path.basename(f)) for f in os.listdir('/army/changes')])
+
+    lowest_id = 1
+    while lowest_id in current_ids:
+        lowest_id += 1
+
+    return lowest_id
+
+def lowest_avail_filename(directory):
+    return directory + str(lowest_avail_id(directory)) + '.osc'
 
 
 if __name__ == '__main__':
@@ -218,7 +233,11 @@ if __name__ == '__main__':
                 else:
                     append_osc.get_delete().append(node)
 
-    with open(CHANGES, 'w') as f:
+    change_filename = lowest_avail_filename(CHANGES)
+    pending_filename = lowest_avail_filename(PENDING)
+    with open(change_filename, 'w') as f:
         f.write(str(apply_i))
-    with open(PENDING, 'w') as f:
+    with open(pending_filename, 'w') as f:
         f.write(str(ask_p))
+
+    send_mail([change_filename, pending_filename], 'mwr54@nbcs.rutgers.edu')
