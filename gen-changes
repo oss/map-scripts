@@ -82,7 +82,7 @@ def parse_api_url(url):
 
 
 def read_element(element, nid):
-    parse_api_url(
+    return parse_api_url(
         "http://api.openstreetmap.org/api/0.6/{0}/{1}".format(element, nid))
 
 
@@ -145,19 +145,19 @@ def max_bbox(bbox1, bbox2):
 
 
 def get_bbox(node, bboxes):
-    bbox = [-180, -90, 180, 90]
+    bbox = [180, 90, -180, -90]
     if node.tag == "node":
         lat = float(node.attrib['lat'])
         lon = float(node.attrib['lon'])
         bboxes[node.attrib['id']] = (lat, lon, lat, lon)
     else:
-        find = "node"
+        find = "nd"
         if node.tag == "member":
             find = "member"
         for element in node.findall(find):
-            element_type = element.attrib['type']
-            if find == "node":
-                element_type = "node"
+            element_type = "node"
+            if find == "member":
+                element_type = element.attrib['type']
             try:
                 elem_box = bboxes[element.attrib['ref']]
             except KeyError:
@@ -213,7 +213,7 @@ if __name__ == '__main__':
                 else:
                     append_osc.get_delete().append(node)
 
-    with open('apply_i', 'w') as f:
+    with open('/army/changes.osc', 'w') as f:
         f.write(str(apply_i))
-    with open('ask_p', 'w') as f:
+    with open('/army/pending.osc', 'w') as f:
         f.write(str(ask_p))
