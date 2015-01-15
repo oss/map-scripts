@@ -5,18 +5,15 @@ import sys
 import urllib2
 from datetime import datetime
 
+NJ_LATEST = ("http://download.geofabrik.de/"
+                     "north-america/us/new-jersey-latest.osm.pbf")
+
+def get_new_jersey(outfile):
+    with open(outfile, 'w') as f:
+        f.write(urllib2.urlopen(NJ_LATEST).read())
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print "Usage: get-new-jersey <outfile>"
         sys.exit(1)
-    h = lxml.html.fromstring(urllib2.urlopen("http://download.geofabrik.de/north-america/us/new-jersey.html").read())
-    table = h.cssselect('table#subregions')[0]
-    output = ""
-    for tr in table[1:]:
-        if tr[0][0].text == "new-jersey-latest.osm.pbf":
-            output = tr[1].text
-    filetime = datetime.strptime(output, "%Y-%m-%d %H:%M").strftime("%Y-%m-%dT%H:%M:%SZ") + "\n"
-    with open(sys.argv[1], 'w') as f:
-        f.write(filetime)
-    with open('/army/new-jersey-latest.osm.pbf', 'w') as f:
-        f.write(urllib2.urlopen("http://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf").read())
+    get_new_jersey(sys.argv[1])
