@@ -14,6 +14,9 @@ ERROR=false
 for change in /army/changes/*;
 do
     changename=`basename $change`
+    if [ $changename = '*' ]; then
+        break
+    fi
     osm2pgsql --append --slim -d gis -C 1600 --number-processes 3 -e0-18 -o /army/dirty-tiles-$changename $change || continue && ERROR=true
     if [ ! -f /army/dirty-tiles ]; then
         mv /army/dirty-tiles-$changename /army/dirty-tiles

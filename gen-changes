@@ -184,7 +184,7 @@ def lowest_avail_id(directory):
     return lowest_id
 
 def lowest_avail_filename(directory):
-    return directory + str(lowest_avail_id(directory)) + '.osc'
+    return os.path.join(directory, str(lowest_avail_id(directory)) + '.osc')
 
 
 if __name__ == '__main__':
