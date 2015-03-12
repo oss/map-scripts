@@ -6,28 +6,34 @@ import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 import xml.dom.minidom
-from shapely.geometry import Polygon
 from shapely.geometry import box
 from shapely.wkt import loads
-from datetime import datetime
 
-from sys import argv, exit
-import smtplib, os, os.path
+import smtplib
+import os
+import os.path
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from email.MIMEBase import MIMEBase
 from email.Utils import formatdate
 from email import Encoders
 
+# URL for latest NJ pbf
 NJ_LATEST = ("http://download.geofabrik.de/"
-                     "north-america/us/new-jersey-latest.osm.pbf")
+             "north-america/us/new-jersey-latest.osm.pbf")
+
+# Disk locations for latest and previous NJ pbf
 NJ_LATEST_PBF = '/army/new-jersey-latest.osm.pbf'
 NJ_OLD_PBF = '/army/new-jersey-old.osm.pbf'
 
+# Diff and changes disk locations
 DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
+# Command run for osmosis, this command takes the two
+# pbfs and creates a new xml file that is the difference
+# between the two
 OSMOSIS_CMD = [
     'osmosis',
     '--read-pbf',
@@ -41,6 +47,11 @@ OSMOSIS_CMD = [
 
 
 class OSMChange:
+    """Simple wrapper for creating an osmChange.
+    Create, modify, and delete are easily accessible
+    from the functions provided here. They should mostly be
+    appended to.
+    """
     def __init__(self):
         self.osc = ET.Element('osmChange')
         self.osc.set('version', '0.6')
@@ -65,6 +76,10 @@ class OSMChange:
 
 
 def nominatim_url(query, **kwargs):
+    """Build a url for nominatim to get osm info
+    from a string
+    """
+    # base url
     nominatimurl = 'http://nominatim.openstreetmap.org/search/'
     if query is not None:
         nominatimurl += query
@@ -72,6 +87,7 @@ def nominatim_url(query, **kwargs):
         return nominatimurl
     nominatimurl += '?'
     for kwarg in kwargs:
+        # only add on the & if we haven't just added on the ?
         if nominatimurl[len(nominatimurl)-1] != '?':
             nominatimurl += '&'
         nominatimurl += kwarg + '=' + kwargs[kwarg]
@@ -79,6 +95,7 @@ def nominatim_url(query, **kwargs):
 
 
 def parse_api_url(url):
+    """Turn a url into a parsed ElementTree"""
     print url
     f = urllib2.urlopen(url)
     root = ET.fromstring(f.read())
@@ -87,11 +104,15 @@ def parse_api_url(url):
 
 
 def read_element(element, nid):
+    """Get a node/way/relation from osm"""
     return parse_api_url(
         "http://api.openstreetmap.org/api/0.6/{0}/{1}".format(element, nid))
 
 
 def get_by_name(name, format='xml', bbox=None):
+    """Get a shape based on a string. Use nominatim to get
+    the most likely candidate
+    """
     name_search = None
     if bbox is not None:
         str_bbox = "{0},{1},{2},{3}".format(*bbox)
@@ -106,6 +127,7 @@ def get_by_name(name, format='xml', bbox=None):
 
 
 def print_ET(root):
+    """Pretty print xml from ElementTree"""
     print xml.dom.minidom.parseString(ET.tostring(root)).toprettyxml(),
 
 
@@ -116,19 +138,21 @@ def name_to_polygon(name, bbox=None):
 
 
 def send_mail(changes, address):
+    """Send email requesting maps approval."""
     msg = MIMEMultipart()
     msg['From'] = 'phantoon'
     msg['To'] = address
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = "Changes for Rutgers maps need approval"
-    msg.attach(MIMEText("The attached files need approval, run"
+    msg.attach(MIMEText(
+        "The attached files need approval, run "
         "'/usr/bin/commit-changes' on phantoon to allow or deny changes"))
     for change in changes:
         part = MIMEBase('text', 'xml')
         part.set_payload(open(change, "r").read())
         Encoders.encode_base64(part)
-        part.add_header('Content-Disposition', 'attachment; filename="{0}"'.\
-            format(os.path.basename(change)))
+        part.add_header('Content-Disposition', 'attachment; filename="{0}"'.
+                        format(os.path.basename(change)))
         msg.attach(part)
     smtp = smtplib.SMTP('localhost')
     smtp.sendmail('phantoon', address, msg.as_string())
@@ -136,20 +160,22 @@ def send_mail(changes, address):
 
 
 def get_new_jersey(outfile):
+    """Download latest version of New Jersey from geofabrik"""
     with open(outfile, 'w') as f:
         f.write(urllib2.urlopen(NJ_LATEST).read())
 
 
 def max_bbox(bbox1, bbox2):
-    val =  [min(bbox1[0], bbox2[0]),
-            min(bbox1[1], bbox2[1]),
-            max(bbox1[2], bbox2[2]),
-            max(bbox1[3], bbox2[3])]
+    val = [min(bbox1[0], bbox2[0]),
+           min(bbox1[1], bbox2[1]),
+           max(bbox1[2], bbox2[2]),
+           max(bbox1[3], bbox2[3])]
     print val
     return val
 
 
 def get_bbox(node, bboxes):
+    """Get bounding box around a node from an ElementTree"""
     bbox = [180, 90, -180, -90]
     if node.tag == "node":
         lat = float(node.attrib['lat'])
@@ -167,7 +193,7 @@ def get_bbox(node, bboxes):
                 elem_box = bboxes[element.attrib['ref']]
             except KeyError:
                 elem_box = get_bbox(read_element(element_type,
-                    element.attrib['ref'])[0], bboxes)
+                                    element.attrib['ref'])[0], bboxes)
             bbox = max_bbox(bbox, elem_box)
         bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
     return bboxes[node.attrib['id']]
@@ -183,20 +209,30 @@ def lowest_avail_id(directory):
 
     return lowest_id
 
-def lowest_avail_filename(directory):
-    return os.path.join(directory, str(lowest_avail_id(directory)) + '.osc')
 
-
-if __name__ == '__main__':
-
-    new_jersey = name_to_polygon("New Jersey")
-
+def get_rutgers():
     rutgers_bbox = [-74.5343, 40.4164, -74.3520, 40.5673]
     busch = name_to_polygon("Rutgers Busch Campus", bbox=rutgers_bbox)
     livi = name_to_polygon("Rutgers Livingston Campus", bbox=rutgers_bbox)
     college_ave = name_to_polygon("Rutgers University - New Brunswick",
                                   bbox=rutgers_bbox)
-    rutgers = [busch, livi, college_ave]
+    return [busch, livi, college_ave]
+
+
+def lowest_avail_filename(directory):
+    return os.path.join(directory, str(lowest_avail_id(directory)) + '.osc')
+
+
+def intersects_any(bbox, rutgers):
+    for campus in rutgers:
+        if bbox.intersects(campus):
+            return True
+    return False
+
+
+if __name__ == '__main__':
+
+    rutgers = get_rutgers()
 
     print "Moving old New Jersey file"
     shutil.move(NJ_LATEST_PBF, NJ_OLD_PBF)
@@ -214,7 +250,7 @@ if __name__ == '__main__':
     changes = ET.parse(DIFF)
 
     apply_i = OSMChange()
-    ask_p   = OSMChange()
+    ask_p = OSMChange()
 
     bboxes = {}
 
@@ -222,16 +258,15 @@ if __name__ == '__main__':
     for change in changes.getroot():
         for node in change:
             bbox = box(*get_bbox(node, bboxes))
-            for campus in rutgers:
-                append_osc = apply_i
-                if bbox.intersects(campus):
-                    append_osc = ask_p
-                if change.tag == "create":
-                    append_osc.get_create().append(node)
-                elif change.tag == "modify":
-                    append_osc.get_modify().append(node)
-                else:
-                    append_osc.get_delete().append(node)
+            append_osc = apply_i
+            if intersects_any(bbox, rutgers):
+                append_osc = ask_p
+            if change.tag == "create":
+                append_osc.get_create().append(node)
+            elif change.tag == "modify":
+                append_osc.get_modify().append(node)
+            else:
+                append_osc.get_delete().append(node)
 
     change_filename = lowest_avail_filename(CHANGES)
     pending_filename = lowest_avail_filename(PENDING)
