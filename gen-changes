@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 from shapely.geometry import box
 from shapely.wkt import loads
+import argparse
 
 import smtplib
 import os
@@ -159,10 +160,10 @@ def send_mail(changes, address):
     smtp.close()
 
 
-def get_new_jersey(outfile):
+def get_new_jersey(outfile, nj_latest):
     """Download latest version of New Jersey from geofabrik"""
     with open(outfile, 'w') as f:
-        f.write(urllib2.urlopen(NJ_LATEST).read())
+        f.write(urllib2.urlopen(nj_latest).read())
 
 
 def max_bbox(bbox1, bbox2):
@@ -232,13 +233,37 @@ def intersects_any(bbox, rutgers):
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser(
+        description='Create change files based on a bounding box')
+    parser.add_argument('-u', '--nj-url',
+                        default=NJ_LATEST,
+                        help='Url to get pbf from')
+    parser.add_argument('-l', '--nj-latest',
+                        default=NJ_LATEST_PBF,
+                        help='Location to save new pbf')
+    parser.add_argument('-o', '--nj-old',
+                        default=NJ_OLD_PBF,
+                        help='Location of the old pbf')
+    parser.add_argument('-d', '--diff',
+                        default=DIFF,
+                        help='Diff location')
+    parser.add_argument('-c', '--changes',
+                        default=CHANGES,
+                        help='Changes directory')
+    parser.add_argument('-p', '--pending',
+                        default=PENDING,
+                        help='Pending directory')
+    parser.add_argument('-s', '--short-circuit',
+                        action='store_true')
+    args = parser.parse_args()
+
     rutgers = get_rutgers()
 
     print "Moving old New Jersey file"
     shutil.move(NJ_LATEST_PBF, NJ_OLD_PBF)
 
     print "Getting new New Jersey file"
-    get_new_jersey(NJ_LATEST_PBF)
+    get_new_jersey(NJ_LATEST_PBF, NJ_LATEST)
 
     print "Calling osmosis"
     subprocess.check_call(OSMOSIS_CMD)
