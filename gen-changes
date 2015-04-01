@@ -32,20 +32,6 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
-# Command run for osmosis, this command takes the two
-# pbfs and creates a new xml file that is the difference
-# between the two
-OSMOSIS_CMD = [
-    'osmosis',
-    '--read-pbf',
-    'file={0}'.format(NJ_OLD_PBF),
-    '--read-pbf',
-    'file={0}'.format(NJ_LATEST_PBF),
-    '--derive-change',
-    '--write-xml-change',
-    'file={0}'.format(DIFF)
-]
-
 
 class OSMChange:
     """Simple wrapper for creating an osmChange.
@@ -257,22 +243,37 @@ if __name__ == '__main__':
                         action='store_true')
     args = parser.parse_args()
 
+    if not args.short_circuit:
+        # Command run for osmosis, this command takes the two
+        # pbfs and creates a new xml file that is the difference
+        # between the two
+        osmosis_cmd = [
+            'osmosis',
+            '--read-pbf',
+            'file={0}'.format(args.nj_old),
+            '--read-pbf',
+            'file={0}'.format(args.nj_latest),
+            '--derive-change',
+            '--write-xml-change',
+            'file={0}'.format(args.diff)
+        ]
+
+        print "Moving old New Jersey file"
+        shutil.move(args.nj_latest, args.nj_old)
+
+        print "Getting new New Jersey file"
+        get_new_jersey(args.nj_latest, args.nj_url)
+
+        print "Calling osmosis"
+        subprocess.check_call(osmosis_cmd)
+
+        print "Removing old NJ file"
+        os.remove(args.nj_old)
+
     rutgers = get_rutgers()
 
-    print "Moving old New Jersey file"
-    shutil.move(NJ_LATEST_PBF, NJ_OLD_PBF)
-
-    print "Getting new New Jersey file"
-    get_new_jersey(NJ_LATEST_PBF, NJ_LATEST)
-
-    print "Calling osmosis"
-    subprocess.check_call(OSMOSIS_CMD)
-
-    print "Removing old NJ file"
-    os.remove(NJ_OLD_PBF)
-
     print "Parsing diff"
-    changes = ET.parse(DIFF)
+    changes = ET.parse(args.diff)
 
     apply_i = OSMChange()
     ask_p = OSMChange()
