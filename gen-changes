@@ -188,7 +188,7 @@ def get_bbox(node, bboxes):
 
 def lowest_avail_id(directory):
     current_ids = set(
-        [int(os.path.basename(f)) for f in os.listdir('/army/changes')])
+        [int(os.path.splitext(f)[0]) for f in os.listdir(directory)])
 
     lowest_id = 1
     while lowest_id in current_ids:
@@ -241,6 +241,9 @@ if __name__ == '__main__':
                         help='Pending directory')
     parser.add_argument('-s', '--short-circuit',
                         action='store_true')
+    parser.add_argument('-m', '--no-send-mail',
+                        action='store_true',
+                        help='Add to stop mail sending')
     args = parser.parse_args()
 
     if not args.short_circuit:
@@ -294,11 +297,15 @@ if __name__ == '__main__':
             else:
                 append_osc.get_delete().append(node)
 
-    change_filename = lowest_avail_filename(CHANGES)
-    pending_filename = lowest_avail_filename(PENDING)
+    print "Writing files"
+    change_filename = lowest_avail_filename(args.changes)
+    pending_filename = lowest_avail_filename(args.pending)
     with open(change_filename, 'w') as f:
         f.write(str(apply_i))
     with open(pending_filename, 'w') as f:
         f.write(str(ask_p))
 
-    send_mail([change_filename, pending_filename], 'mwr54@nbcs.rutgers.edu')
+    if not args.no_send_mail:
+        print "Sending mail"
+        send_mail([change_filename, pending_filename],
+                  'mwr54@nbcs.rutgers.edu')
