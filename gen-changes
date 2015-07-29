@@ -1,23 +1,23 @@
 #!/usr/bin/env python
 
-import urllib
-import urllib2
-import shutil
-import subprocess
-import xml.etree.ElementTree as ET
-import xml.dom.minidom
-from shapely.geometry import box, Point, LineString
-from shapely.wkt import loads
-import argparse
-
-import smtplib
 import os
 import os.path
+import shutil
+import smtplib
+import subprocess
+import urllib
+import urllib2
+import xml.etree.ElementTree as ET
+import xml.dom.minidom as MD
+from email import Encoders
+from email.MIMEBase import MIMEBase
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
-from email.MIMEBase import MIMEBase
 from email.Utils import formatdate
-from email import Encoders
+
+import argparse
+from shapely.geometry import box, Point, LineString
+from shapely.wkt import loads
 
 # URL for latest NJ pbf
 NJ_LATEST = ("http://download.geofabrik.de/"
@@ -68,8 +68,10 @@ def nominatim_url(query, **kwargs):
     """
     # base url
     nominatimurl = 'http://nominatim.openstreetmap.org/search/'
+    # add on the query
     if query is not None:
         nominatimurl += query
+    # return if we're done
     if not kwargs:
         return nominatimurl
     nominatimurl += '?'
@@ -77,12 +79,15 @@ def nominatim_url(query, **kwargs):
         # only add on the & if we haven't just added on the ?
         if nominatimurl[len(nominatimurl)-1] != '?':
             nominatimurl += '&'
+        # put kwarg with the format key=value
         nominatimurl += kwarg + '=' + kwargs[kwarg]
     return nominatimurl
 
 
 def parse_api_url(url):
-    """Turn a url into a parsed ElementTree"""
+    """Turn a url into a parsed ElementTree
+    Assumes that the url leads to xml
+    """
     print url
     f = urllib2.urlopen(url)
     root = ET.fromstring(f.read())
@@ -115,7 +120,7 @@ def get_by_name(name, format='xml', bbox=None):
 
 def print_ET(root):
     """Pretty print xml from ElementTree"""
-    print xml.dom.minidom.parseString(ET.tostring(root)).toprettyxml(),
+    print MD.parseString(ET.tostring(root)).toprettyxml(),
 
 
 def name_to_polygon(name, bbox=None):
@@ -257,6 +262,7 @@ if __name__ == '__main__':
             '--read-pbf',
             'file={0}'.format(args.nj_latest),
             '--derive-change',
+            '--simplify-change',
             '--write-xml-change',
             'file={0}'.format(args.diff)
         ]
@@ -287,8 +293,10 @@ if __name__ == '__main__':
     for change in changes.getroot():
         for node in change:
             bbox = get_bbox(node, bboxes)
+            # check if the entity has no width or height
             if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
                 bbox = Point(bbox[0], bbox[1])
+            # check if just width xor height is missing
             elif bbox[0] == bbox[2]:
                 bbox = LineString([(bbox[1], bbox[3])])
             elif bbox[1] == bbox[3]:

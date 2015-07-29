@@ -1,6 +1,0 @@
-<?xml version='1.0' encoding='UTF-8'?>
-<osmChange version='0.6'>
-    <create>
-        <node id='1' lat='40.52193161227' lon='-74.462572622' />
-    </create>
-</osmChange>

@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# WARNING
+# This file is deprecated. It was used for a brief period when salt wasn't set up.
+# Don't use it anymore
 VERBOSE=true
 USR_NAME="tiler"
 GEN_TILES_DIR="/army/mapnik-stylesheets"

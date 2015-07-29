@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osmChange version='0.6'>
+  <modify>
+    <way id="251382352" visible="true" version="1" changeset="19399830" timestamp="2013-12-11T18:13:31Z" user="rutgers_oss" uid="1839087">
+      <!--<nd ref="2576056222"/>-->
+      <nd ref="2576056455"/>
+      <nd ref="2576056655"/>
+      <nd ref="2576056773"/>
+      <nd ref="2576056840"/>
+      <nd ref="2576056671"/>
+      <nd ref="2576056635"/>
+      <nd ref="2576056634"/>
+      <nd ref="2576056625"/>
+      <nd ref="2576056601"/>
+      <nd ref="2576056577"/>
+      <nd ref="2576056568"/>
+      <nd ref="2576056559"/>
+      <nd ref="2576056554"/>
+      <nd ref="2576056543"/>
+      <nd ref="2576056534"/>
+      <nd ref="2576056532"/>
+      <nd ref="2576056540"/>
+      <nd ref="2576056222"/>
+      <tag k="addr:city" v="Piscataway"/>
+      <tag k="addr:housenumber" v="118"/>
+      <tag k="addr:postcode" v="08854-8019"/>
+      <tag k="addr:state" v="Nj"/>
+      <tag k="addr:street" v="FRELINGHUYSEN ROAD"/>
+      <tag k="building" v="yes"/>
+      <tag k="name" v="T. Alexander Pond Science And Engineering Resource Center"/>
+      <tag k="NHD:AUXCODE" v="Acad/Adm"/>
+      <tag k="NHD:BldgAddr_1" v="118 FRELINGHUYSEN ROAD"/>
+      <tag k="NHD:BldgName_1" v="T. Alexander Pond Science and Engineering Resource Center"/>
+      <tag k="NHD:BldgNum" v="3854.000000"/>
+      <tag k="NHD:CampusCo_1" v="20.000000"/>
+      <tag k="NHD:City_1" v="Piscataway"/>
+      <tag k="NHD:Lat_1" v="40.522723"/>
+      <tag k="NHD:Long_1" v="-74.462830"/>
+      <tag k="NHD:State_1" v="NJ"/>
+      <tag k="NHD:Zip_1" v="08854-8019"/>
+      <tag k="rutgers:auxcode" v="Acad/Adm"/>
+      <tag k="rutgers:building_no" v="3854"/>
+      <tag k="rutgers:campus_code" v="20"/>
+      <tag k="source" v="Rutgers"/>
+    </way>
+  </modify>
+</osmChange>
