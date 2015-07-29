@@ -1,0 +1,27 @@
+Busch and Livingston
+
+left: -74.4736
+bottom: 40.5096
+right: -74.4332
+top: 40.5283
+
+http://www.openstreetmap.org/?minlon=-74.4736&minlat=40.5096&maxlon=-74.4332&maxlat=40.5283&box=yes
+
+
+College Ave
+
+left: -74.4576
+bottom: 40.4905
+right: -74.4372
+top: 40.5068
+
+http://www.openstreetmap.org/?minlon=-74.4576&minlat=40.4905&maxlon=-74.4372&maxlat=40.5068&box=yes
+
+Cook/Douglass
+
+left: -74.4453
+bottom: 40.4777
+right: -74.4276
+top: 40.4887
+
+http://www.openstreetmap.org/?minlon=-74.4453&minlat=40.4777&maxlon=-74.4276&maxlat=40.4887&box=yes
