@@ -46,22 +46,19 @@ class Way():
                 box[3] = lat
         return box
 
-def make_ways(root):
+def is_building(way):
+    for tag in way.findall('tag'):
+        if tag.attrib['k'] == "building" and tag.attrib['v'] == "yes":
+            return True
+    return False
+
+def make_ways(root, check_building=False):
     """Build way objects from the root of an osm file"""
     nodes = {}
-    ways = []
     for node in root.findall('node'):
         nodes[node.attrib['id']] = node
 
-    for way in root.findall('way'):
-        building = False
-        for tag in way.findall('tag'):
-            if tag.attrib['k'] == "building" and tag.attrib['v'] == "yes":
-                building = True
-        if building:
-            ways.append(Way(way, nodes))
-
-    return ways
+    return [Way(way, nodes) for way in root.findall('way') if not check_building or is_building(way)]
 
 def largest_box(boxes):
     """Find the largest box that surrounds any of the boxes in the list.
@@ -206,17 +203,12 @@ if __name__ == "__main__":
     # Find the bounding box around the given data
     # and split it up into valid locations
     largest_bound = largest_box([way.get_bounds() for way in our_ways])
-    locations = get_subdivisions(largest_bound, boundb_apiurl, our_ways)
 
     # Make an API call for each location and parse the xml returned
-    responses = [urllib2.urlopen(boundb_apiurl.format(*location)) for location in locations]
-    roots = [ET.fromstring(response.read()) for response in responses]
+    response = urllib2.urlopen(boundb_apiurl.format(*largest_bound))
+    root = ET.fromstring(response.read())
 
-    osm_ways = []
-
-    # Get all the ways from the xml
-    for root in roots:
-        osm_ways.extend(make_ways(root))
+    osm_ways = make_ways(root, True)
 
     # Make a spatial tree from way average points
     osm_tree = spatial.KDTree([way.avg_point for way in osm_ways])
@@ -230,9 +222,8 @@ if __name__ == "__main__":
     # Find pairs that are >= the entered amount similar
     # TODO check for other places nodes are used for deletions
     replace_pairs = [jaccard_similarity(pair, args.similarity) for pair in pairs]
-    for root in roots:
-        for pair in replace_pairs:
-            pair.append(make_relations(root, pair))
+    for pair in replace_pairs:
+       pair.append(make_relations(root, pair))
 
     josm_root = generate_josm(replace_pairs)
 
