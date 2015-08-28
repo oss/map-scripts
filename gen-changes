@@ -175,7 +175,7 @@ def get_bbox(node, bboxes):
         bboxes[node.attrib['id']] = (lon, lat, lon, lat)
     else:
         find = "nd"
-        if node.tag == "member":
+        if node.tag == "relation":
             find = "member"
         for element in node.findall(find):
             element_type = "node"
