@@ -204,6 +204,7 @@ def render_specific(tiles, mapfile, tile_dir, name="unknown", num_threads=NUM_TH
         os.mkdir(tile_dir)
 
     for tile in tiles:
+        tile = tile.rstrip()
         z, x, y = [int(dim) for dim in tile.split('/')]
         tile_uri = os.path.join(tile_dir, tile) + '.png'
         t = (name, tile_uri, x, y, z)
