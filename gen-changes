@@ -258,9 +258,9 @@ if __name__ == '__main__':
         osmosis_cmd = [
             'osmosis',
             '--read-pbf',
-            'file={0}'.format(args.nj_old),
-            '--read-pbf',
             'file={0}'.format(args.nj_latest),
+            '--read-pbf',
+            'file={0}'.format(args.nj_old),
             '--derive-change',
             '--simplify-change',
             '--write-xml-change',
@@ -292,6 +292,8 @@ if __name__ == '__main__':
     print "Calculating bounding boxes"
     for change in changes.getroot():
         for node in change:
+            if node.tag == "bounds":
+                continue
             bbox = get_bbox(node, bboxes)
             # check if the entity has no width or height
             if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
@@ -302,7 +304,7 @@ if __name__ == '__main__':
             elif bbox[1] == bbox[3]:
                 bbox = LineString([(bbox[0], bbox[2])])
             else:
-                bbox = box(*get_bbox(node, bboxes))
+                bbox = box(*bbox)
             print bbox
             append_osc = apply_i
             if intersects_any(bbox, rutgers):
