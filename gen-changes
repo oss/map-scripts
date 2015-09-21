@@ -32,6 +32,137 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
+class Refs:
+    NODE = 0
+    WAY = 1
+    RELATION = 2
+
+    def __init_(self, refs):
+        self.refs = refs
+
+    def put(self, k, v):
+        self.refs[k] = v
+
+    def get_node(self, ref):
+        return self.get(ref, Refs.NODE)
+
+    def get_way(self, ref):
+        return self.get(ref, Refs.WAY)
+
+    def get_relation(self, ref):
+        return self.get(ref, Refs.RELATION)
+
+    def get(self, ref, ref_type):
+        try:
+            return self.refs[ref]
+        except KeyError:
+            # query from the database
+            # TODO
+            if ref_type == Refs.NODE:
+                return None
+            elif ref_type == Refs.WAY:
+                return None
+            elif ref_type == Refs.RELATION:
+                return None
+            else:
+                return None
+
+class Node:
+    def __init__(self, osm_id, lat, lon):
+        self.osm_id = osm_id
+        self.lat = lat
+        self.lon = lon
+        self.tag = 'node'
+
+    def to_xml(self):
+        return ET.Element('node', id=self.osm_id, lat=self.lat, lon=self.lon)
+
+    @staticmethod
+    def from_xml(xml):
+        osm_id = xml.attrib['id']
+        lat = xml.attrib['lat']
+        lon = xml.attrib['lon']
+        return Node(osm_id, lat, lon)
+
+class Way:
+    def __init__(self, osm_id, nodes=None):
+        self.osm_id = osm_id
+        self.tag = 'way'
+        if nodes is None:
+            self.nodes = []
+        else:
+            self.nodes = nodes
+
+    def to_xml(self):
+        way_root = ET.Element('way', id=self.osm_id)
+        for node in self.nodes:
+            ET.SubElement(way_root, 'nd', ref=node.osm_id)
+        return way_root
+
+    @staticmethod
+    def from_xml(xml, refs):
+        osm_id = xml.attrib['id']
+        nodes = []
+        for node in xml:
+            if node.tag == "nd":
+                nodes.append(refs[node.attrib['ref']])
+        return Way(osm_id, nodes)
+
+class Relation:
+    def __init__(self, osm_id, members=None):
+        self.osm_id = osm_id
+        self.tag = 'relation'
+        if members is None:
+            self.members = []
+        else:
+            self.members = members
+
+    def to_xml(self):
+        rel_root = ET.Element('relation', id=self.osm_id)
+        for member in self.members:
+            ET.SubElement(rel_root, member.tag, ref=member.osm_id)
+        return rel_root
+
+    @staticmethod
+    def from_xml(xml, refs):
+        osm_id = xml.attrib['id']
+        members = []
+        for member in xml:
+            if member.tag = "member":
+                members.append(refs[member.attrib['ref']])
+        return Relation(osm_id, members)
+
+class OSM:
+    def __init__(self, elements=None):
+        if elements is None:
+            self.elements = []
+        else:
+            self.elements = elements
+
+    def to_xml(self):
+        osm_root = ET.Element('osm', version='0.6')
+        for element in self.elements:
+            osm_root.append(element.to_xml())
+        return osm_root
+
+    @staticmethod
+    def from_xml(xml):
+        elements = []
+        refs = {}
+        for element in xml:
+            if element.tag == "node":
+                node = Node.from_xml(element)
+                refs[node.osm_id] = node
+                elements.append(node)
+            elif element.tag == "way":
+                way = Way.from_xml(element, refs)
+                refs[way.osm_id] = way
+                elements.append(way)
+            elif element.tag == "relation":
+                relation = Relation.from_xml(element, refs)
+                refs[relation.osm_id] = relation
+                elements.append(relation)
+        return OSM(elements)
 
 class OSMChange:
     """Simple wrapper for creating an osmChange.
@@ -39,24 +170,30 @@ class OSMChange:
     from the functions provided here. They should mostly be
     appended to.
     """
-    def __init__(self):
+    def __init__(self, xml=None):
         self.osc = ET.Element('osmChange')
         self.osc.set('version', '0.6')
-        ET.SubElement(self.osc, 'create')
-        ET.SubElement(self.osc, 'modify')
-        ET.SubElement(self.osc, 'delete')
+        self._create = ET.SubElement(self.osc, 'create')
+        self._modify = ET.SubElement(self.osc, 'modify')
+        self._delete = ET.SubElement(self.osc, 'delete')
+        self.create = []
+        self.modify = []
+        self.delete = []
+        if xml is not None:
+            self.from_xml(xml)
+
+    def from_xml(self, xml):
+        for tag in xml.getroot():
+            for element in tag:
+                if tag.tag == 'create':
+                    append_tag = self.create
+                elif tag.tag == 'modify':
+                    append_tag = self.modify
+                else:
+                    append_tag = delete
 
     def __repr__(self):
         return ET.tostring(self.osc)
-
-    def get_create(self):
-        return self.osc[0]
-
-    def get_modify(self):
-        return self.osc[1]
-
-    def get_delete(self):
-        return self.osc[2]
 
     def dump(self):
         ET.dump(self.osc)
@@ -263,6 +400,7 @@ if __name__ == '__main__':
             'file={0}'.format(args.nj_old),
             '--derive-change',
             '--simplify-change',
+            '--sort',
             '--write-xml-change',
             'file={0}'.format(args.diff)
         ]
