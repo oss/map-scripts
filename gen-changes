@@ -14,10 +14,18 @@ from email.MIMEBase import MIMEBase
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from email.Utils import formatdate
+from osm import OSMChange
 
 import argparse
 from shapely.geometry import box, Point, LineString
 from shapely.wkt import loads
+
+from sqlalchemy import create_engine, Column, Integer, String, BigInteger
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from geoalchemy2 import Geometry
+from geoalchemy2.shape import to_shape
+from pyproj import Proj
 
 # URL for latest NJ pbf
 NJ_LATEST = ("http://download.geofabrik.de/"
@@ -32,171 +40,33 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
-class Refs:
-    NODE = 0
-    WAY = 1
-    RELATION = 2
+engine = create_engine('postgresql://tiler:yellow@localhost/gis')
 
-    def __init_(self, refs):
-        self.refs = refs
+Session = sessionmaker(bind=engine)
+session = Session()
 
-    def put(self, k, v):
-        self.refs[k] = v
+Base = declarative_base()
 
-    def get_node(self, ref):
-        return self.get(ref, Refs.NODE)
 
-    def get_way(self, ref):
-        return self.get(ref, Refs.WAY)
+class Point(Base):
+    __tablename__ = 'planet_osm_point'
 
-    def get_relation(self, ref):
-        return self.get(ref, Refs.RELATION)
+    osm_id = Column(BigInteger, primary_key=True)
+    way = Column(Geometry('POINT'))
 
-    def get(self, ref, ref_type):
-        try:
-            return self.refs[ref]
-        except KeyError:
-            # query from the database
-            # TODO
-            if ref_type == Refs.NODE:
-                return None
-            elif ref_type == Refs.WAY:
-                return None
-            elif ref_type == Refs.RELATION:
-                return None
-            else:
-                return None
 
-class Node:
-    def __init__(self, osm_id, lat, lon):
-        self.osm_id = osm_id
-        self.lat = lat
-        self.lon = lon
-        self.tag = 'node'
+class Line(Base):
+    __tablename__ = 'planet_osm_line'
 
-    def to_xml(self):
-        return ET.Element('node', id=self.osm_id, lat=self.lat, lon=self.lon)
+    osm_id = Column(BigInteger, primary_key=True)
+    way = Column(Geometry('LINESTRING'))
 
-    @staticmethod
-    def from_xml(xml):
-        osm_id = xml.attrib['id']
-        lat = xml.attrib['lat']
-        lon = xml.attrib['lon']
-        return Node(osm_id, lat, lon)
 
-class Way:
-    def __init__(self, osm_id, nodes=None):
-        self.osm_id = osm_id
-        self.tag = 'way'
-        if nodes is None:
-            self.nodes = []
-        else:
-            self.nodes = nodes
+class Polygon(Base):
+    __tablename__ = 'planet_osm_polygon'
 
-    def to_xml(self):
-        way_root = ET.Element('way', id=self.osm_id)
-        for node in self.nodes:
-            ET.SubElement(way_root, 'nd', ref=node.osm_id)
-        return way_root
-
-    @staticmethod
-    def from_xml(xml, refs):
-        osm_id = xml.attrib['id']
-        nodes = []
-        for node in xml:
-            if node.tag == "nd":
-                nodes.append(refs[node.attrib['ref']])
-        return Way(osm_id, nodes)
-
-class Relation:
-    def __init__(self, osm_id, members=None):
-        self.osm_id = osm_id
-        self.tag = 'relation'
-        if members is None:
-            self.members = []
-        else:
-            self.members = members
-
-    def to_xml(self):
-        rel_root = ET.Element('relation', id=self.osm_id)
-        for member in self.members:
-            ET.SubElement(rel_root, member.tag, ref=member.osm_id)
-        return rel_root
-
-    @staticmethod
-    def from_xml(xml, refs):
-        osm_id = xml.attrib['id']
-        members = []
-        for member in xml:
-            if member.tag = "member":
-                members.append(refs[member.attrib['ref']])
-        return Relation(osm_id, members)
-
-class OSM:
-    def __init__(self, elements=None):
-        if elements is None:
-            self.elements = []
-        else:
-            self.elements = elements
-
-    def to_xml(self):
-        osm_root = ET.Element('osm', version='0.6')
-        for element in self.elements:
-            osm_root.append(element.to_xml())
-        return osm_root
-
-    @staticmethod
-    def from_xml(xml):
-        elements = []
-        refs = {}
-        for element in xml:
-            if element.tag == "node":
-                node = Node.from_xml(element)
-                refs[node.osm_id] = node
-                elements.append(node)
-            elif element.tag == "way":
-                way = Way.from_xml(element, refs)
-                refs[way.osm_id] = way
-                elements.append(way)
-            elif element.tag == "relation":
-                relation = Relation.from_xml(element, refs)
-                refs[relation.osm_id] = relation
-                elements.append(relation)
-        return OSM(elements)
-
-class OSMChange:
-    """Simple wrapper for creating an osmChange.
-    Create, modify, and delete are easily accessible
-    from the functions provided here. They should mostly be
-    appended to.
-    """
-    def __init__(self, xml=None):
-        self.osc = ET.Element('osmChange')
-        self.osc.set('version', '0.6')
-        self._create = ET.SubElement(self.osc, 'create')
-        self._modify = ET.SubElement(self.osc, 'modify')
-        self._delete = ET.SubElement(self.osc, 'delete')
-        self.create = []
-        self.modify = []
-        self.delete = []
-        if xml is not None:
-            self.from_xml(xml)
-
-    def from_xml(self, xml):
-        for tag in xml.getroot():
-            for element in tag:
-                if tag.tag == 'create':
-                    append_tag = self.create
-                elif tag.tag == 'modify':
-                    append_tag = self.modify
-                else:
-                    append_tag = delete
-
-    def __repr__(self):
-        return ET.tostring(self.osc)
-
-    def dump(self):
-        ET.dump(self.osc)
+    osm_id = Column(BigInteger, primary_key=True)
+    way = Column(Geometry('GEOMETRY'))
 
 
 def nominatim_url(query, **kwargs):
@@ -315,14 +185,20 @@ def get_bbox(node, bboxes):
         if node.tag == "relation":
             find = "member"
         for element in node.findall(find):
-            element_type = "node"
-            if find == "member":
-                element_type = element.attrib['type']
             try:
                 elem_box = bboxes[element.attrib['ref']]
             except KeyError:
-                elem_box = get_bbox(read_element(element_type,
-                                    element.attrib['ref'])[0], bboxes)
+                element_type = "node"
+                if find == "member":
+                    element_type = element.attrib['type']
+                q = osm_func(element_type, Point, Line, Polygon)
+                result = session.query(q).filter_by(osm_id=osm_id).first().way
+                xp1, yp1, xp2, yp2 = to_shape(result).bounds
+
+                prj = Proj(init='epsg:3857')
+                x1, y1 = prj(xp1, yp1, inverse=True)
+                x2, y2 = prj(xp2, yp2, inverse=True)
+                elem_box = [x1, y1, x2, y2]
             bbox = max_bbox(bbox, elem_box)
         bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
     return bboxes[node.attrib['id']]
@@ -448,11 +324,11 @@ if __name__ == '__main__':
             if intersects_any(bbox, rutgers):
                 append_osc = ask_p
             if change.tag == "create":
-                append_osc.get_create().append(node)
+                append_osc.create.append(node)
             elif change.tag == "modify":
-                append_osc.get_modify().append(node)
+                append_osc.modify.append(node)
             else:
-                append_osc.get_delete().append(node)
+                append_osc.delete.append(node)
 
     print "Writing files"
     change_filename = lowest_avail_filename(args.changes)
