@@ -1,3 +1,6 @@
+import xml.etree.ElementTree as ET
+from osm import max_bbox
+
 class Refs:
     NODE = 0
     WAY = 1
@@ -41,6 +44,9 @@ class Node:
         self.lon = lon
         self.tag = 'node'
 
+    def bounds(self):
+        return (self.lat, self.lon, self.lat, self.lon)
+
     def to_xml(self):
         return ET.Element('node', id=self.osm_id, lat=self.lat, lon=self.lon)
 
@@ -53,13 +59,19 @@ class Node:
 
 
 class Way:
-    def __init__(self, osm_id, nodes=None):
+    def __init__(self, osm_id, nodes=None, shape=None):
         self.osm_id = osm_id
         self.tag = 'way'
+        self.shape = shape
         if nodes is None:
             self.nodes = []
         else:
             self.nodes = nodes
+
+    def bounds(self):
+        if self.shape is not None:
+            return self.shape.bounds
+        return reduce(max_bbox, [node.bounds() for node in self.nodes])
 
     def to_xml(self):
         way_root = ET.Element('way', id=self.osm_id)
@@ -78,13 +90,19 @@ class Way:
 
 
 class Relation:
-    def __init__(self, osm_id, members=None):
+    def __init__(self, osm_id, members=None, shape=None):
         self.osm_id = osm_id
         self.tag = 'relation'
+        self.shape = shape
         if members is None:
             self.members = []
         else:
             self.members = members
+
+    def bounds(self):
+        if self.shape is not None:
+            return self.shape.bounds
+        return reduce(max_bbox, [member.bounds() for node in self.members])
 
     def to_xml(self):
         rel_root = ET.Element('relation', id=self.osm_id)
@@ -97,7 +115,7 @@ class Relation:
         osm_id = xml.attrib['id']
         members = []
         for member in xml:
-            if member.tag = "member":
+            if member.tag == "member":
                 func = osm_func(
                     member.attrib['type'],
                     refs.get_node,
@@ -115,6 +133,11 @@ class OSM:
             self.elements = []
         else:
             self.elements = elements
+
+    def bounds(self):
+        if self.shape is not None:
+            return self.shape.bounds
+        return reduce(max_bbox, [element.bounds() for node in self.elements])
 
     def to_xml(self):
         osm_root = ET.Element('osm', version='0.6')

@@ -14,18 +14,12 @@ from email.MIMEBase import MIMEBase
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from email.Utils import formatdate
-from osm import OSMChange
+from osm.models import OSMChange
+import osm
 
 import argparse
 from shapely.geometry import box, Point, LineString
 from shapely.wkt import loads
-
-from sqlalchemy import create_engine, Column, Integer, String, BigInteger
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from geoalchemy2 import Geometry
-from geoalchemy2.shape import to_shape
-from pyproj import Proj
 
 # URL for latest NJ pbf
 NJ_LATEST = ("http://download.geofabrik.de/"
@@ -40,100 +34,10 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
-engine = create_engine('postgresql://tiler:yellow@localhost/gis')
-
-Session = sessionmaker(bind=engine)
-session = Session()
-
-Base = declarative_base()
-
-
-class Point(Base):
-    __tablename__ = 'planet_osm_point'
-
-    osm_id = Column(BigInteger, primary_key=True)
-    way = Column(Geometry('POINT'))
-
-
-class Line(Base):
-    __tablename__ = 'planet_osm_line'
-
-    osm_id = Column(BigInteger, primary_key=True)
-    way = Column(Geometry('LINESTRING'))
-
-
-class Polygon(Base):
-    __tablename__ = 'planet_osm_polygon'
-
-    osm_id = Column(BigInteger, primary_key=True)
-    way = Column(Geometry('GEOMETRY'))
-
-
-def nominatim_url(query, **kwargs):
-    """Build a url for nominatim to get osm info
-    from a string
-    """
-    # base url
-    nominatimurl = 'http://nominatim.openstreetmap.org/search/'
-    # add on the query
-    if query is not None:
-        nominatimurl += query
-    # return if we're done
-    if not kwargs:
-        return nominatimurl
-    nominatimurl += '?'
-    for kwarg in kwargs:
-        # only add on the & if we haven't just added on the ?
-        if nominatimurl[len(nominatimurl)-1] != '?':
-            nominatimurl += '&'
-        # put kwarg with the format key=value
-        nominatimurl += kwarg + '=' + kwargs[kwarg]
-    return nominatimurl
-
-
-def parse_api_url(url):
-    """Turn a url into a parsed ElementTree
-    Assumes that the url leads to xml
-    """
-    print url
-    f = urllib2.urlopen(url)
-    root = ET.fromstring(f.read())
-    f.close()
-    return root
-
-
-def read_element(element, nid):
-    """Get a node/way/relation from osm"""
-    return parse_api_url(
-        "http://api.openstreetmap.org/api/0.6/{0}/{1}".format(element, nid))
-
-
-def get_by_name(name, format='xml', bbox=None):
-    """Get a shape based on a string. Use nominatim to get
-    the most likely candidate
-    """
-    name_search = None
-    if bbox is not None:
-        str_bbox = "{0},{1},{2},{3}".format(*bbox)
-        name_search = parse_api_url(nominatim_url(name,
-                                                  format=format,
-                                                  viewboxlbrt=str_bbox,
-                                                  polygon_text="1"))
-    else:
-        name_search = parse_api_url(nominatim_url(name, format=format,
-                                                  polygon_text="1"))
-    return name_search
-
 
 def print_ET(root):
     """Pretty print xml from ElementTree"""
     print MD.parseString(ET.tostring(root)).toprettyxml(),
-
-
-def name_to_polygon(name, bbox=None):
-    name_root = get_by_name(urllib.quote(name), bbox=bbox)
-    polygon = loads(name_root[0].attrib['geotext'])
-    return polygon
 
 
 def send_mail(changes, address):
@@ -164,15 +68,6 @@ def get_new_jersey(outfile, nj_latest):
         f.write(urllib2.urlopen(nj_latest).read())
 
 
-def max_bbox(bbox1, bbox2):
-    val = [min(bbox1[0], bbox2[0]),
-           min(bbox1[1], bbox2[1]),
-           max(bbox1[2], bbox2[2]),
-           max(bbox1[3], bbox2[3])]
-    print val
-    return val
-
-
 def get_bbox(node, bboxes):
     """Get bounding box around a node from an ElementTree"""
     bbox = [180, 90, -180, -90]
@@ -191,7 +86,11 @@ def get_bbox(node, bboxes):
                 element_type = "node"
                 if find == "member":
                     element_type = element.attrib['type']
-                q = osm_func(element_type, Point, Line, Polygon)
+                osm_id = int(element.attrib['ref'])
+                q = osm.osm_func(element_type, Point, Line, Polygon)
+                print "osm_id: " + str(osm_id)
+                print "q: " + str(q)
+                print element_type
                 result = session.query(q).filter_by(osm_id=osm_id).first().way
                 xp1, yp1, xp2, yp2 = to_shape(result).bounds
 
