@@ -1,3 +1,9 @@
+import urllib
+import urllib2
+import xml.etree.ElementTree as ET
+from shapely.wkt import loads
+
+
 def load_xml_from_url(url):
     """Turn a url into a parsed ElementTree
     Assumes that the url leads to xml
@@ -6,6 +12,28 @@ def load_xml_from_url(url):
     root = ET.fromstring(f.read())
     f.close()
     return root
+
+
+def nominatim_url(query, **kwargs):
+    """Build a url for nominatim to get osm info
+    from a string
+    """
+    # base url
+    nominatimurl = 'http://nominatim.openstreetmap.org/search/'
+    # add on the query
+    if query is not None:
+        nominatimurl += query
+    # return if we're done
+    if not kwargs:
+        return nominatimurl
+    nominatimurl += '?'
+    for kwarg in kwargs:
+        # only add on the & if we haven't just added on the ?
+        if nominatimurl[len(nominatimurl)-1] != '?':
+            nominatimurl += '&'
+        # put kwarg with the format key=value
+        nominatimurl += kwarg + '=' + kwargs[kwarg]
+    return nominatimurl
 
 
 def get_by_name(name, format='xml', bbox=None):
@@ -29,25 +57,3 @@ def name_to_polygon(name, bbox=None):
     name_root = get_by_name(urllib.quote(name), bbox=bbox)
     polygon = loads(name_root[0].attrib['geotext'])
     return polygon
-
-
-def nominatim_url(query, **kwargs):
-    """Build a url for nominatim to get osm info
-    from a string
-    """
-    # base url
-    nominatimurl = 'http://nominatim.openstreetmap.org/search/'
-    # add on the query
-    if query is not None:
-        nominatimurl += query
-    # return if we're done
-    if not kwargs:
-        return nominatimurl
-    nominatimurl += '?'
-    for kwarg in kwargs:
-        # only add on the & if we haven't just added on the ?
-        if nominatimurl[len(nominatimurl)-1] != '?':
-            nominatimurl += '&'
-        # put kwarg with the format key=value
-        nominatimurl += kwarg + '=' + kwargs[kwarg]
-    return nominatimurl

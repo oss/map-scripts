@@ -5,7 +5,6 @@ import os.path
 import shutil
 import smtplib
 import subprocess
-import urllib
 import urllib2
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as MD
@@ -14,12 +13,12 @@ from email.MIMEBase import MIMEBase
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from email.Utils import formatdate
-from osm.models import OSMChange
-import osm
 
 import argparse
 from shapely.geometry import box, Point, LineString
-from shapely.wkt import loads
+
+from osm.models import OSMChange
+from osm.nominatim import name_to_polygon
 
 # URL for latest NJ pbf
 NJ_LATEST = ("http://download.geofabrik.de/"
@@ -34,6 +33,7 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
+RUTGERS_BBOX = [-74.5343, 40.4164, -74.3520, 40.5673]
 
 def print_ET(root):
     """Pretty print xml from ElementTree"""
@@ -115,11 +115,10 @@ def lowest_avail_id(directory):
 
 
 def get_rutgers():
-    rutgers_bbox = [-74.5343, 40.4164, -74.3520, 40.5673]
-    busch = name_to_polygon("Rutgers Busch Campus", bbox=rutgers_bbox)
-    livi = name_to_polygon("Rutgers Livingston Campus", bbox=rutgers_bbox)
+    busch = name_to_polygon("Rutgers Busch Campus", bbox=RUTGERS_BBOX)
+    livi = name_to_polygon("Rutgers Livingston Campus", bbox=RUTGERS_BBOX)
     college_ave = name_to_polygon("Rutgers University - New Brunswick",
-                                  bbox=rutgers_bbox)
+                                  bbox=RUTGERS_BBOX)
     return [busch, livi, college_ave]
 
 

@@ -9,6 +9,17 @@ def osm_func(etype, node, way, relation):
         return None
 
 
+def osc_func(ctype, create, modify, delete):
+    if ctype == "create":
+        return create
+    elif ctype == "modify":
+        return modify
+    elif ctype == "delete":
+        return delete
+    else:
+        return None
+
+
 def max_bbox(bbox1, bbox2):
     return (
         min(bbox1[0], bbox2[0]),
