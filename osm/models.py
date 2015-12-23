@@ -18,11 +18,11 @@ class Refs:
         self.rel_refs = {}
 
     def put(self, k, v):
-        if v is Node:
+        if isinstance(v, Node):
             self.put_node(k, v)
-        elif v is Way:
+        elif isinstance(v, Way):
             self.put_way(k, v)
-        elif v is Relation:
+        elif isinstance(v, Relation):
             self.put_rel(k, v)
 
     def put_node(self, k, v):
