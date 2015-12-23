@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from osm import max_bbox, osm_func, osc_func
+from osm import max_bbox, osm_func, osc_func, get_bbox_shape
 
 CREATE = "create"
 MODIFY = "modify"
@@ -12,11 +12,30 @@ class Refs:
     WAY = 1
     RELATION = 2
 
-    def __init_(self, refs=None):
-        self.refs = refs or {}
+    def __init__(self):
+        self.node_refs = {}
+        self.way_refs = {}
+        self.rel_refs = {}
 
     def put(self, k, v):
-        self.refs[k] = v
+        if v is Node:
+            self.put_node(k, v)
+        elif v is Way:
+            self.put_way(k, v)
+        elif v is Relation:
+            self.put_rel(k, v)
+
+    def put_node(self, k, v):
+        if k not in self.node_refs:
+            self.node_refs[k] = v
+
+    def put_way(self, k, v):
+        if k not in self.way_refs:
+            self.way_refs[k] = v
+
+    def put_rel(self, k, v):
+        if k not in self.rel_refs:
+            self.rel_refs[k] = v
 
     def get_node(self, ref):
         return self.get(ref, Refs.NODE)
@@ -28,27 +47,26 @@ class Refs:
         return self.get(ref, Refs.RELATION)
 
     def get(self, ref, ref_type):
-        try:
-            return self.refs[ref]
-        except KeyError:
-            # query from the database
-            # TODO
-            if ref_type == Refs.NODE:
-                return None
-            elif ref_type == Refs.WAY:
-                return None
-            elif ref_type == Refs.RELATION:
-                return None
-            else:
-                return None
+        if ref_type == Refs.NODE:
+            return self.node_refs[ref]
+        elif ref_type == Refs.WAY:
+            return self.way_refs[ref]
+        elif ref_type == Refs.RELATION:
+            return self.rel_refs[ref]
+        else:
+            return None
 
 
 class Node:
+    TAG = "node"
+
     def __init__(self, osm_id, lat, lon):
         self.osm_id = osm_id
         self.lat = lat
         self.lon = lon
-        self.tag = 'node'
+
+    def get_bbox(self):
+        return get_bbox_shape(self.bounds())
 
     def bounds(self):
         return (self.lat, self.lon, self.lat, self.lon)
@@ -65,15 +83,16 @@ class Node:
 
 
 class Way:
-    def __init__(self, osm_id, nodes=None, shape=None):
+    TAG = "way"
+
+    def __init__(self, osm_id, nodes=None):
         self.osm_id = osm_id
-        self.tag = 'way'
-        self.shape = shape
         self.nodes = nodes or []
 
+    def get_bbox(self):
+        return get_bbox_shape(self.bounds())
+
     def bounds(self):
-        if self.shape:
-            return self.shape.bounds
         return reduce(max_bbox, [node.bounds() for node in self.nodes])
 
     def to_xml(self):
@@ -93,15 +112,16 @@ class Way:
 
 
 class Relation:
-    def __init__(self, osm_id, members=None, shape=None):
+    TAG = "relation"
+
+    def __init__(self, osm_id, members=None):
         self.osm_id = osm_id
-        self.tag = 'relation'
-        self.shape = shape
         self.members = members or []
 
+    def get_bbox(self):
+        return get_bbox_shape(self.bounds())
+
     def bounds(self):
-        if self.shape:
-            return self.shape.bounds
         return reduce(max_bbox, [member.bounds() for node in self.members])
 
     def to_xml(self):
@@ -146,6 +166,7 @@ class OSM:
         elements = []
         refs = Refs()
         for element in xml:
+            print "On element: " + element.tag
             func = osm_func(
                 element.tag,
                 lambda: Node.from_xml(element),
@@ -166,27 +187,61 @@ class OSMChange:
     appended to.
     """
 
-    def __init__(self, create=None, modify=None, delete=None):
-        self.create = create or []
-        self.modify = modify or []
-        self.delete = delete or []
+    def __init__(self, create, modify, delete):
+        self.create = create
+        self.modify = modify
+        self.delete = delete
 
     def __repr__(self):
-        return ET.tostring(self.osc)
+        return "OSMChange(create={}, modify={}, delete={})".format(
+            str(self.create), str(self.modify), str(self.delete))
 
-    def dump(self):
-        ET.dump(self.osc)
+    def to_xml(self):
+        osc_root = ET.Element('osmChange', version='0.6')
+        creations = ET.SubElement(osc_root, "create")
+        modifications = ET.SubElement(osc_root, "modify")
+        deletions = ET.SubElement(osc_root, "delete")
+
+        for creation in self.create:
+            creations.append(creation.to_xml())
+
+        for modification in self.modify:
+            modifications.append(modification.to_xml())
+
+        for deletions in self.delete:
+            deletions.append(delete.to_xml())
+
+        return osc_root
+
+
 
     @staticmethod
-    def from_xml(xml):
+    def from_xml(xml, context):
         create = []
         modify = []
         delete = []
-        refs = {}
+        refs = Refs()
+
+        print "Getting refs"
+        for event, elem in context:
+            if elem.tag == "node":
+                refs.put_node(elem.attrib["id"],
+                    Node(
+                        elem.attrib["id"],
+                        float(elem.attrib["lat"]),
+                        float(elem.attrib["lon"])
+                    )
+                )
+            elem.clear()
+            while elem.getprevious() is not None:
+                del elem.getparent()[0]
+
+        print "Parsing changes"
         for change_t in xml.getroot():
             for element in change_t:
                 if element.tag == BOUNDS:
                     # TODO record what the bounds are
+                    # reason I don't already is that I don't trust osm
                     continue
                 func = osm_func(
                     element.tag,
@@ -194,10 +249,10 @@ class OSMChange:
                     lambda: Way.from_xml(element, refs),
                     lambda: Relation.from_xml(element, refs)
                 )
-                if func:
+                if func is not None:
                     value = func()
                     refs.put(value.osm_id, value)
                     ctype = osc_func(change_t.tag, create, modify, delete)
-                    if ctype:
+                    if ctype is not None:
                         ctype.append(value)
         return OSMChange(create, modify, delete)

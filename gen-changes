@@ -15,7 +15,6 @@ from email.MIMEText import MIMEText
 from email.Utils import formatdate
 
 import argparse
-from shapely.geometry import box, Point, LineString
 
 from osm.models import OSMChange
 from osm.nominatim import name_to_polygon
@@ -68,41 +67,6 @@ def get_new_jersey(outfile, nj_latest):
         f.write(urllib2.urlopen(nj_latest).read())
 
 
-def get_bbox(node, bboxes):
-    """Get bounding box around a node from an ElementTree"""
-    bbox = [180, 90, -180, -90]
-    if node.tag == "node":
-        lat = float(node.attrib['lat'])
-        lon = float(node.attrib['lon'])
-        bboxes[node.attrib['id']] = (lon, lat, lon, lat)
-    else:
-        find = "nd"
-        if node.tag == "relation":
-            find = "member"
-        for element in node.findall(find):
-            try:
-                elem_box = bboxes[element.attrib['ref']]
-            except KeyError:
-                element_type = "node"
-                if find == "member":
-                    element_type = element.attrib['type']
-                osm_id = int(element.attrib['ref'])
-                q = osm.osm_func(element_type, Point, Line, Polygon)
-                print "osm_id: " + str(osm_id)
-                print "q: " + str(q)
-                print element_type
-                result = session.query(q).filter_by(osm_id=osm_id).first().way
-                xp1, yp1, xp2, yp2 = to_shape(result).bounds
-
-                prj = Proj(init='epsg:3857')
-                x1, y1 = prj(xp1, yp1, inverse=True)
-                x2, y2 = prj(xp2, yp2, inverse=True)
-                elem_box = [x1, y1, x2, y2]
-            bbox = max_bbox(bbox, elem_box)
-        bboxes[node.attrib['id']] = (bbox[0], bbox[1], bbox[2], bbox[3])
-    return bboxes[node.attrib['id']]
-
-
 def lowest_avail_id(directory):
     current_ids = set(
         [int(os.path.splitext(f)[0]) for f in os.listdir(directory)])
@@ -114,16 +78,16 @@ def lowest_avail_id(directory):
     return lowest_id
 
 
+def lowest_avail_filename(directory):
+    return os.path.join(directory, str(lowest_avail_id(directory)) + '.osc')
+
+
 def get_rutgers():
     busch = name_to_polygon("Rutgers Busch Campus", bbox=RUTGERS_BBOX)
     livi = name_to_polygon("Rutgers Livingston Campus", bbox=RUTGERS_BBOX)
     college_ave = name_to_polygon("Rutgers University - New Brunswick",
                                   bbox=RUTGERS_BBOX)
     return [busch, livi, college_ave]
-
-
-def lowest_avail_filename(directory):
-    return os.path.join(directory, str(lowest_avail_id(directory)) + '.osc')
 
 
 def intersects_any(bbox, rutgers):
@@ -194,47 +158,41 @@ if __name__ == '__main__':
     rutgers = get_rutgers()
 
     print "Parsing diff"
-    changes = ET.parse(args.diff)
+    changes = OSMChange.from_xml(
+            ET.parse(args.diff),
+            etree.iterparse(args.nj_latest))
 
-    apply_i = OSMChange()
-    ask_p = OSMChange()
+    apply_create = []
+    apply_modify = []
+    apply_delete = []
 
-    bboxes = {}
+    ask_create = []
+    ask_modify = []
+    ask_delete = []
 
-    print "Calculating bounding boxes"
-    for change in changes.getroot():
-        for node in change:
-            if node.tag == "bounds":
-                continue
-            bbox = get_bbox(node, bboxes)
-            # check if the entity has no width or height
-            if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
-                bbox = Point(bbox[0], bbox[1])
-            # check if just width xor height is missing
-            elif bbox[0] == bbox[2]:
-                bbox = LineString([(bbox[1], bbox[3])])
-            elif bbox[1] == bbox[3]:
-                bbox = LineString([(bbox[0], bbox[2])])
+    split_changes = [
+        (apply_create, ask_create, changes.create),
+        (apply_modify, ask_modify, changes.modify),
+        (apply_delete, ask_delete, changes.delete)
+    ]
+
+    for apply_change, ask_change, change in split_changes:
+        for element in change:
+            if intersects_any(element.get_bbox(), rutgers):
+                ask_change.append(element)
             else:
-                bbox = box(*bbox)
-            print bbox
-            append_osc = apply_i
-            if intersects_any(bbox, rutgers):
-                append_osc = ask_p
-            if change.tag == "create":
-                append_osc.create.append(node)
-            elif change.tag == "modify":
-                append_osc.modify.append(node)
-            else:
-                append_osc.delete.append(node)
+                apply_change.append(element)
+
+    apply_changes = OSMChange(apply_create, apply_modify, apply_delete)
+    ask_changes = OSMChange(ask_create, ask_modify, ask_delete)
 
     print "Writing files"
     change_filename = lowest_avail_filename(args.changes)
     pending_filename = lowest_avail_filename(args.pending)
     with open(change_filename, 'w') as f:
-        f.write(str(apply_i))
+        f.write(ET.tostring(apply_changes.to_xml()))
     with open(pending_filename, 'w') as f:
-        f.write(str(ask_p))
+        f.write(ET.tostring(ask_changes.to_xml()))
 
     if not args.no_send_mail:
         print "Sending mail"
