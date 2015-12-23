@@ -77,8 +77,8 @@ class Node:
     @staticmethod
     def from_xml(xml):
         osm_id = xml.attrib['id']
-        lat = xml.attrib['lat']
-        lon = xml.attrib['lon']
+        lat = float(xml.attrib['lat'])
+        lon = float(xml.attrib['lon'])
         return Node(osm_id, lat, lon)
 
 
