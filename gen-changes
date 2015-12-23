@@ -160,7 +160,8 @@ if __name__ == '__main__':
     print "Parsing diff"
     changes = OSMChange.from_xml(
             ET.parse(args.diff),
-            etree.iterparse(args.nj_latest))
+            etree.iterparse(args.nj_latest),
+            etree.iterparse(args.nj_old))
 
     apply_create = []
     apply_modify = []

@@ -216,19 +216,20 @@ class OSMChange:
 
 
     @staticmethod
-    def from_xml(xml, context):
+    def from_xml(xml, new_context, old_context):
         create = []
         modify = []
         delete = []
         refs = Refs()
 
         print "Getting refs"
-        for event, elem in context:
-            if elem.tag == "node":
-                refs.put_node(elem.attrib["id"], Node.from_xml(elem))
-            elem.clear()
-            while elem.getprevious() is not None:
-                del elem.getparent()[0]
+        for context in [new_context, old_context]:
+            for event, elem in context:
+                if elem.tag == "node":
+                    refs.put_node(elem.attrib["id"], Node.from_xml(elem))
+                elem.clear()
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
 
         print "Parsing changes"
         for change_t in xml.getroot():
