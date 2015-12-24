@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 from osm import max_bbox, osm_func, osc_func, get_bbox_shape
+import shelve
 
 CREATE = "create"
 MODIFY = "modify"
@@ -13,9 +14,9 @@ class Refs:
     RELATION = 2
 
     def __init__(self):
-        self.node_refs = {}
-        self.way_refs = {}
-        self.rel_refs = {}
+        self.node_refs = shelve.open("node_refs")
+        self.way_refs = shelve.open("way_refs")
+        self.rel_refs = shelve.open("rel_refs")
 
     def put(self, k, v):
         if isinstance(v, Node):
