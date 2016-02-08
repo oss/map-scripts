@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 from osm import max_bbox, osm_func, osc_func, get_bbox_shape
-import shelve
+import redis
+import re
 
 CREATE = "create"
 MODIFY = "modify"
@@ -8,15 +9,17 @@ DELETE = "delete"
 
 BOUNDS = "bounds"
 
+NODE_KEY = re.compile("(.+):(.+)")
+WAY_KEY = re.compile("node:(\d+)")
+REL_KEY = re.compile("(\w+):(\d+)")
+
 class Refs:
     NODE = 0
     WAY = 1
     RELATION = 2
 
     def __init__(self):
-        self.node_refs = shelve.open("node_refs")
-        self.way_refs = shelve.open("way_refs")
-        self.rel_refs = shelve.open("rel_refs")
+        self.r = redis.Redis(host="localhost", port=6379)
 
     def put(self, k, v):
         if isinstance(v, Node):
@@ -27,36 +30,60 @@ class Refs:
             self.put_rel(k, v)
 
     def put_node(self, k, v):
-        if k not in self.node_refs:
-            self.node_refs[k] = v
+        self.r.set(
+            "node:{0}".format(k),
+            "{0}:{1}".format(v.lat, v.lon)
+        )
 
     def put_way(self, k, v):
-        if k not in self.way_refs:
-            self.way_refs[k] = v
+        for node in v.nodes:
+            self.r.rpush(
+                "way:{0}".format(k),
+                "node:{0}".format(node.osm_id)
+            )
 
     def put_rel(self, k, v):
-        if k not in self.rel_refs:
-            self.rel_refs[k] = v
+        for member in v.members:
+            self.r.rpush(
+                "relation:{0}".format(k),
+                "{0}:{1}".format(member.TAG, member.osm_id)
+            )
 
-    def get_node(self, ref):
-        return self.get(ref, Refs.NODE)
-
-    def get_way(self, ref):
-        return self.get(ref, Refs.WAY)
-
-    def get_relation(self, ref):
-        return self.get(ref, Refs.RELATION)
-
-    def get(self, ref, ref_type):
-        if ref_type == Refs.NODE:
-            return self.node_refs[ref]
-        elif ref_type == Refs.WAY:
-            return self.way_refs[ref]
-        elif ref_type == Refs.RELATION:
-            return self.rel_refs[ref]
-        else:
+    def get_node(self, k):
+        v = self.r.get("node:{0}".format(k))
+        if v is None:
             return None
 
+        lat, lon = NODE_KEY.search(v).group(0, 1)
+        return Node(k, float(lat), float(lon))
+
+    def get_way(self, k):
+        v = self.r.get("way:{0}".format(k))
+        if v is None:
+            return None
+
+        nodes = []
+        for node in v:
+            node_k = WAY_KEY.search(node).group(0)
+            nodes.append(self.get_node(node_k))
+        return Way(k, nodes)
+
+    def get_relation(self, k):
+        v = self.r.get("relation:{0}".format(k))
+        if v is None:
+            return None
+
+        members = []
+        for member in v:
+            member_type, member_id = REL_KEY.search(member).group(0, 1)
+            if member_type == "node":
+                append_value = self.get_node(member_id)
+            elif member_type == "way":
+                append_value = self.get_way(member_id)
+            else:
+                append_value = self.get_relation(member_id)
+            members.append(append_value)
+        return Relation(k, members)
 
 class Node:
     TAG = "node"
