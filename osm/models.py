@@ -256,8 +256,9 @@ class OSMChange:
                 if elem.tag == "node":
                     refs.put_node(elem.attrib["id"], Node.from_xml(elem))
                 elem.clear()
-                while elem.getprevious() is not None:
-                    del elem.getparent()[0]
+                # Not sure what this does
+                #while elem.getprevious() is not None:
+                #    del elem.getparent()[0]
 
         print "Parsing changes"
         for change_t in xml.getroot():
