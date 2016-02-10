@@ -283,6 +283,8 @@ class OSMChange:
                         elem.attrib["id"],
                         "{0}:{1}".format(elem.attrib["lat"], elem.attrib["lon"])
                     )
+                if elem.tag == "way" or elem.tag == "relation":
+                    break
                 elem.clear()
 
         print "Parsing changes"
