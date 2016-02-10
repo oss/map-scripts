@@ -37,12 +37,18 @@ class Refs:
         return self.r.get(k)
 
     def put_node(self, k, v):
+        if self.r.get("node:{0}".format(k)) is not None:
+            return
+
         self.r.set(
             "node:{0}".format(k),
             "{0}:{1}".format(v.lat, v.lon)
         )
 
     def put_way(self, k, v):
+        if self.r.get("way:{0}".format(k)) is not None:
+            return
+
         for node in v.nodes:
             self.r.rpush(
                 "way:{0}".format(k),
@@ -50,6 +56,9 @@ class Refs:
             )
 
     def put_rel(self, k, v):
+        if self.r.get("relation:{0}".format(k)) is not None:
+            return
+
         for member in v.members:
             self.r.rpush(
                 "relation:{0}".format(k),
