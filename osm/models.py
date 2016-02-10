@@ -280,7 +280,7 @@ class OSMChange:
             for event, elem in context:
                 if elem.tag == "node":
                     refs.set(
-                        elem.attrib["id"],
+                        "node:{0}".format(elem.attrib["id"]),
                         "{0}:{1}".format(elem.attrib["lat"], elem.attrib["lon"])
                     )
                 if elem.tag == "way" or elem.tag == "relation":
