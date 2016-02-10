@@ -29,6 +29,13 @@ class Refs:
         elif isinstance(v, Relation):
             self.put_rel(k, v)
 
+    def set(self, k, v):
+        if self.get(k) is None:
+            self.r.set(k, v)
+
+    def get(self, k):
+        return self.r.get(k)
+
     def put_node(self, k, v):
         self.r.set(
             "node:{0}".format(k),
@@ -135,7 +142,9 @@ class Way:
         nodes = []
         for node in xml:
             if node.tag == "nd":
-                nodes.append(refs.get_node(node.attrib['ref']))
+                found_node = refs.get_node(node.attrib['ref'])
+                if found_node is not None:
+                    nodes.append(found_node)
         return Way(osm_id, nodes)
 
 
@@ -171,7 +180,9 @@ class Relation:
                     refs.get_relation
                 )
                 if ref_get:
-                    members.append(ref_get(member.attrib['ref']))
+                    found_member = ref_get(member.attrib['ref'])
+                    if found_member is not None:
+                        members.append(found_member)
         return Relation(osm_id, members)
 
 
@@ -250,15 +261,20 @@ class OSMChange:
         delete = []
         refs = Refs()
 
-        print "Getting refs"
+        first = True
         for context in [new_context, old_context]:
+            if first:
+                print "Getting first refs"
+            else:
+                print "Getting second refs"
+            first = False
             for event, elem in context:
                 if elem.tag == "node":
-                    refs.put_node(elem.attrib["id"], Node.from_xml(elem))
+                    refs.set(
+                        elem.attrib["id"],
+                        "{0}:{1}".format(elem.attrib["lat"], elem.attrib["lon"])
+                    )
                 elem.clear()
-                # Not sure what this does
-                #while elem.getprevious() is not None:
-                #    del elem.getparent()[0]
 
         print "Parsing changes"
         for change_t in xml.getroot():
