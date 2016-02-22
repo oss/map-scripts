@@ -256,12 +256,10 @@ class OSMChange:
         for modification in self.modify:
             modifications.append(modification.to_xml())
 
-        for deletions in self.delete:
+        for deletion in self.delete:
             deletions.append(delete.to_xml())
 
         return osc_root
-
-
 
     @staticmethod
     def from_xml(xml, new_context, old_context):
@@ -291,8 +289,6 @@ class OSMChange:
         for change_t in xml.getroot():
             for element in change_t:
                 if element.tag == BOUNDS:
-                    # TODO record what the bounds are
-                    # reason I don't already is that I don't trust osm
                     continue
                 func = osm_func(
                     element.tag,

@@ -16,8 +16,10 @@ from email.Utils import formatdate
 
 import argparse
 
-from osm.models import OSMChange
-from osm.nominatim import name_to_polygon
+from osm.models import OSMChange, max_bbox
+import osm.osmosis as osmosis
+
+from shapely.wkt import loads
 
 # URL for latest NJ pbf
 NJ_LATEST = ("http://download.geofabrik.de/"
@@ -82,12 +84,18 @@ def lowest_avail_filename(directory):
     return os.path.join(directory, str(lowest_avail_id(directory)) + '.osc')
 
 
+def get_shape_from_file(filename):
+    with open(filename) as f:
+        shape = loads(f.read().strip('\n'))
+        return shape
+
+
 def get_rutgers():
-    busch = name_to_polygon("Rutgers Busch Campus", bbox=RUTGERS_BBOX)
-    livi = name_to_polygon("Rutgers Livingston Campus", bbox=RUTGERS_BBOX)
-    college_ave = name_to_polygon("Rutgers University - New Brunswick",
-                                  bbox=RUTGERS_BBOX)
-    return [busch, livi, college_ave]
+    campuses = ["busch", "livingston", "college_avenue", "cook"]
+    return filter(
+        lambda x: x is not None,
+        [get_shape_from_file(campus + ".wkt") for campus in campuses]
+    )
 
 
 def intersects_any(bbox, rutgers):
@@ -104,12 +112,16 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--nj-url',
                         default=NJ_LATEST,
                         help='Url to get pbf from')
-    parser.add_argument('-l', '--nj-latest',
+    parser.add_argument('-L', '--nj-latest',
                         default=NJ_LATEST_PBF,
                         help='Location to save new pbf')
-    parser.add_argument('-o', '--nj-old',
+    parser.add_argument('-l', '--nj-latest-small',
+                        default=NJ_LATEST_SMALL)
+    parser.add_argument('-O', '--nj-old',
                         default=NJ_OLD_PBF,
                         help='Location of the old pbf')
+    parser.add_argument('-o', '--nj-old-small',
+                        default=NJ_OLD_SMALL)
     parser.add_argument('-d', '--diff',
                         default=DIFF,
                         help='Diff location')
@@ -126,74 +138,59 @@ if __name__ == '__main__':
                         help='Add to stop mail sending')
     args = parser.parse_args()
 
-    if not args.short_circuit:
-        # Command run for osmosis, this command takes the two
-        # pbfs and creates a new xml file that is the difference
-        # between the two
-        osmosis_cmd = [
-            'osmosis',
-            '--read-pbf',
-            'file={0}'.format(args.nj_latest),
-            '--read-pbf',
-            'file={0}'.format(args.nj_old),
-            '--derive-change',
-            '--simplify-change',
-            '--sort',
-            '--write-xml-change',
-            'file={0}'.format(args.diff)
-        ]
+    rutgers = get_rutgers()
+    rutgers_bbox = reduce(max_bbox, rutgers)
 
+    if not args.short_circuit:
         print "Moving old New Jersey file"
         shutil.move(args.nj_latest, args.nj_old)
 
         print "Getting new New Jersey file"
         get_new_jersey(args.nj_latest, args.nj_url)
 
+        latest_crop_cmd = osmosis.crop(args.nj_latest, rutgers_bbox, args.nj_latest_small)
+        old_crop_cmd = osmosis.crop(args.nj_old, rutgers_bbox, args.nj_old_small)
+        crop_diff_cmd = osmosis.diff(args.nj_latest_small, args.nj_old_small, args.diff)
+
         print "Calling osmosis"
-        subprocess.check_call(osmosis_cmd)
-
-        print "Removing old NJ file"
-        os.remove(args.nj_old)
-
-    rutgers = get_rutgers()
+        subprocess.check_call(latest_crop_cmd)
+        subprocess.check_call(old_crop_cmd)
+        subprocess.check_call(crop_diff_cmd)
 
     print "Parsing diff"
     changes = OSMChange.from_xml(
             ET.parse(args.diff),
-            ET.iterparse(args.nj_latest),
-            ET.iterparse(args.nj_old))
-
-    apply_create = []
-    apply_modify = []
-    apply_delete = []
+            ET.iterparse(args.nj_latest_small),
+            ET.iterparse(args.nj_old_small))
 
     ask_create = []
     ask_modify = []
     ask_delete = []
 
     split_changes = [
-        (apply_create, ask_create, changes.create),
-        (apply_modify, ask_modify, changes.modify),
-        (apply_delete, ask_delete, changes.delete)
+        (ask_create, changes.create),
+        (ask_modify, changes.modify),
+        (ask_delete, changes.delete)
     ]
 
-    for apply_change, ask_change, change in split_changes:
+    for ask_change, change in split_changes:
         for element in change:
             if intersects_any(element.get_bbox(), rutgers):
                 ask_change.append(element)
-            else:
-                apply_change.append(element)
 
-    apply_changes = OSMChange(apply_create, apply_modify, apply_delete)
     ask_changes = OSMChange(ask_create, ask_modify, ask_delete)
 
     print "Writing files"
-    change_filename = lowest_avail_filename(args.changes)
     pending_filename = lowest_avail_filename(args.pending)
-    with open(change_filename, 'w') as f:
-        f.write(ET.tostring(apply_changes.to_xml()))
     with open(pending_filename, 'w') as f:
         f.write(ET.tostring(ask_changes.to_xml()))
+
+    apply_cmd = osmosis.apply_diff(args.nj_old, pending_filename, "/army/updated_old.pbf")
+    subprocess.check_call(apply_cmd)
+
+    apply_filename = lowest_avail_filename(args.changes)
+    diff_cmd = osmosis.diff("/army/updated_old.pbf", args.nj_latest, apply_filename)
+    subprocess.check_call(diff_cmd)
 
     if not args.no_send_mail:
         print "Sending mail"
