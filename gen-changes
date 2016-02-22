@@ -27,7 +27,9 @@ NJ_LATEST = ("http://download.geofabrik.de/"
 
 # Disk locations for latest and previous NJ pbf
 NJ_LATEST_PBF = '/army/new-jersey-latest.osm.pbf'
+NJ_LATEST_SMALL = '/army/new-jersey-latest-small.osm'
 NJ_OLD_PBF = '/army/new-jersey-old.osm.pbf'
+NJ_OLD_SMALL = '/army/new-jersey-old-small.osm'
 
 # Diff and changes disk locations
 DIFF = '/army/diff.osc'
@@ -139,7 +141,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     rutgers = get_rutgers()
-    rutgers_bbox = reduce(max_bbox, rutgers)
+    rutgers_bbox = reduce(max_bbox, [campus.bounds for campus in rutgers])
 
     if not args.short_circuit:
         print "Moving old New Jersey file"
@@ -150,7 +152,13 @@ if __name__ == '__main__':
 
         latest_crop_cmd = osmosis.crop(args.nj_latest, rutgers_bbox, args.nj_latest_small)
         old_crop_cmd = osmosis.crop(args.nj_old, rutgers_bbox, args.nj_old_small)
-        crop_diff_cmd = osmosis.diff(args.nj_latest_small, args.nj_old_small, args.diff)
+        crop_diff_cmd = osmosis.diff(args.nj_latest_small, args.nj_old_small, args.diff, format="xml")
+
+        print "Running the following commands"
+        print latest_crop_cmd
+        print old_crop_cmd
+        print crop_diff_cmd
+        print ""
 
         print "Calling osmosis"
         subprocess.check_call(latest_crop_cmd)
@@ -173,6 +181,7 @@ if __name__ == '__main__':
         (ask_delete, changes.delete)
     ]
 
+    print "Checking intersections"
     for ask_change, change in split_changes:
         for element in change:
             if intersects_any(element.get_bbox(), rutgers):

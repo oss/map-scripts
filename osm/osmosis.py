@@ -1,30 +1,16 @@
-def diff(file1, file2, output, bbox=None):
-    osmosis_cmd = [
+def diff(file1, file2, output, format="pbf"):
+    return [
         'osmosis',
-        '--read-pbf',
+        '--read-{0}'.format(format),
         'file={0}'.format(file1),
-        '--read-pbf',
-        'file={0}'.format(file2)
-    ]
-
-    if bbox is not None:
-        osmosis_cmd = osmosis_cmd.extend([
-            '--bounding-box',
-            'left={0}'.format(bbox[0]),
-            'bottom={0}'.format(bbox[1]),
-            'right={0}'.format(bbox[2]),
-            'top={0}'.format(bbox[3])
-        ])
-
-    osmosis_cmd = osmosis_cmd.extend([
+        '--read-{0}'.format(format),
+        'file={0}'.format(file2),
         '--derive-change',
         '--simplify-change',
-        '--sort',
+        '--sort-change',
         '--write-xml-change',
         'file={0}'.format(output)
-    ])
-
-    return osmosis_cmd
+    ]
 
 def apply_diff(file1, diff_file, output=None):
     return [
