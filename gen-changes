@@ -203,5 +203,5 @@ if __name__ == '__main__':
 
     if not args.no_send_mail:
         print "Sending mail"
-        send_mail([change_filename, pending_filename],
+        send_mail([apply_filename, pending_filename],
                   'mwr54@nbcs.rutgers.edu')

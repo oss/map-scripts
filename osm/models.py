@@ -46,7 +46,7 @@ class Refs:
         )
 
     def put_way(self, k, v):
-        if self.r.get("way:{0}".format(k)) is not None:
+        if self.r.lrange("way:{0}".format(k), 0, -1):
             return
 
         for node in v.nodes:
@@ -56,7 +56,7 @@ class Refs:
             )
 
     def put_rel(self, k, v):
-        if self.r.get("relation:{0}".format(k)) is not None:
+        if self.r.lrange("relation:{0}".format(k), 0, -1):
             return
 
         for member in v.members:
@@ -70,28 +70,28 @@ class Refs:
         if v is None:
             return None
 
-        lat, lon = NODE_KEY.search(v).group(0, 1)
+        lat, lon = NODE_KEY.search(v).group(1, 2)
         return Node(k, float(lat), float(lon))
 
     def get_way(self, k):
-        v = self.r.get("way:{0}".format(k))
-        if v is None:
+        v = self.r.lrange("way:{0}".format(k), 0, -1)
+        if not v:
             return None
 
         nodes = []
         for node in v:
-            node_k = WAY_KEY.search(node).group(0)
+            node_k = WAY_KEY.search(node).group(1)
             nodes.append(self.get_node(node_k))
         return Way(k, nodes)
 
     def get_relation(self, k):
-        v = self.r.get("relation:{0}".format(k))
-        if v is None:
+        v = self.r.lrange("relation:{0}".format(k), 0, -1)
+        if not v:
             return None
 
         members = []
         for member in v:
-            member_type, member_id = REL_KEY.search(member).group(0, 1)
+            member_type, member_id = REL_KEY.search(member).group(1, 2)
             if member_type == "node":
                 append_value = self.get_node(member_id)
             elif member_type == "way":
@@ -154,7 +154,10 @@ class Way:
                 found_node = refs.get_node(node.attrib['ref'])
                 if found_node is not None:
                     nodes.append(found_node)
-        return Way(osm_id, nodes)
+        if nodes:
+            return Way(osm_id, nodes)
+        else:
+            return None
 
 
 class Relation:
@@ -168,7 +171,10 @@ class Relation:
         return get_bbox_shape(self.bounds())
 
     def bounds(self):
-        return reduce(max_bbox, [member.bounds() for node in self.members])
+        try:
+            return reduce(max_bbox, [member.bounds() for member in self.members])
+        except TypeError:
+            import pdb; pdb.set_trace()
 
     def to_xml(self):
         rel_root = ET.Element('relation', id=self.osm_id)
@@ -192,7 +198,10 @@ class Relation:
                     found_member = ref_get(member.attrib['ref'])
                     if found_member is not None:
                         members.append(found_member)
-        return Relation(osm_id, members)
+        if members:
+            return Relation(osm_id, members)
+        else:
+            return None
 
 
 class OSM:
@@ -298,8 +307,9 @@ class OSMChange:
                 )
                 if func is not None:
                     value = func()
-                    refs.put(value.osm_id, value)
-                    ctype = osc_func(change_t.tag, create, modify, delete)
-                    if ctype is not None:
-                        ctype.append(value)
+                    if value is not None:
+                        refs.put(value.osm_id, value)
+                        ctype = osc_func(change_t.tag, create, modify, delete)
+                        if ctype is not None:
+                            ctype.append(value)
         return OSMChange(create, modify, delete)
