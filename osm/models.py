@@ -30,20 +30,18 @@ class Refs:
         elif isinstance(v, Relation):
             self.put_rel(k, v)
 
+
     def put_node(self, k, v):
-        if self.nodes[k] is not None:
-            return
-        self.nodes[k] = v
+        if k not in self.nodes:
+            self.nodes[k] = v
 
     def put_way(self, k, v):
-        if self.ways[k] is not None:
-            return
-        self.ways[k] = v
+        if k not in self.ways:
+            self.ways[k] = v
 
     def put_rel(self, k, v):
-        if self.relations[k] is not None:
-            return
-        self.relations[k] = v
+        if k not in self.relations:
+            self.relations[k] = v
 
     def get_node(self, k):
         try:
