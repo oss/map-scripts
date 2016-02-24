@@ -36,6 +36,9 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
+TMPFILE = '/tmp/map_scripts_tmp.osm'
+
+
 def print_ET(root):
     """Pretty print xml from ElementTree"""
     print MD.parseString(ET.tostring(root)).toprettyxml(),
@@ -116,12 +119,14 @@ if __name__ == '__main__':
                         default=NJ_LATEST_PBF,
                         help='Location to save new pbf')
     parser.add_argument('-l', '--nj-latest-small',
-                        default=NJ_LATEST_SMALL)
+                        default=NJ_LATEST_SMALL,
+                        help='Location to store new NJ crop')
     parser.add_argument('-O', '--nj-old',
                         default=NJ_OLD_PBF,
                         help='Location of the old pbf')
     parser.add_argument('-o', '--nj-old-small',
-                        default=NJ_OLD_SMALL)
+                        default=NJ_OLD_SMALL,
+                        help='Location to store old NJ crop')
     parser.add_argument('-d', '--diff',
                         default=DIFF,
                         help='Diff location')
@@ -136,6 +141,9 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--no-send-mail',
                         action='store_true',
                         help='Add to stop mail sending')
+    parser.add_argument('-t', '--temp-file',
+                        default=TMPFILE,
+                        help='Location of temp file')
     args = parser.parse_args()
 
     rutgers = get_rutgers()
