@@ -36,8 +36,6 @@ DIFF = '/army/diff.osc'
 CHANGES = '/army/changes'
 PENDING = '/army/pending'
 
-RUTGERS_BBOX = [-74.5343, 40.4164, -74.3520, 40.5673]
-
 def print_ET(root):
     """Pretty print xml from ElementTree"""
     print MD.parseString(ET.tostring(root)).toprettyxml(),
@@ -189,16 +187,18 @@ if __name__ == '__main__':
 
     ask_changes = OSMChange(ask_create, ask_modify, ask_delete)
 
-    print "Writing files"
+    print "Writing intersections to disk"
     pending_filename = lowest_avail_filename(args.pending)
     with open(pending_filename, 'w') as f:
         f.write(ET.tostring(ask_changes.to_xml()))
 
-    apply_cmd = osmosis.apply_diff(args.nj_old, pending_filename, "/army/updated_old.pbf")
+    print "Getting non-intersecting changes"
+    apply_cmd = osmosis.apply_diff(args.nj_old, pending_filename, args.tmp_file)
     subprocess.check_call(apply_cmd)
 
+    print "Writing non-intersecting changes to disk"
     apply_filename = lowest_avail_filename(args.changes)
-    diff_cmd = osmosis.diff("/army/updated_old.pbf", args.nj_latest, apply_filename)
+    diff_cmd = osmosis.diff(arg.tmp_file, args.nj_latest, apply_filename)
     subprocess.check_call(diff_cmd)
 
     if not args.no_send_mail:

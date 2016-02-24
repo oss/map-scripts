@@ -1,17 +1,16 @@
-import xml.etree.ElementTree as ET
 from osm import max_bbox, osm_func, osc_func, get_bbox_shape
-import redis
+
 import re
+import redis
+
+import xml.etree.ElementTree as ET
+
 
 CREATE = "create"
 MODIFY = "modify"
 DELETE = "delete"
-
 BOUNDS = "bounds"
 
-NODE_KEY = re.compile("(.+):(.+)")
-WAY_KEY = re.compile("node:(\d+)")
-REL_KEY = re.compile("(\w+):(\d+)")
 
 class Refs:
     NODE = 0
@@ -19,7 +18,9 @@ class Refs:
     RELATION = 2
 
     def __init__(self):
-        self.r = redis.Redis(host="localhost", port=6379)
+        self.nodes = {}
+        self.ways = {}
+        self.relations = {}
 
     def put(self, k, v):
         if isinstance(v, Node):
@@ -29,118 +30,117 @@ class Refs:
         elif isinstance(v, Relation):
             self.put_rel(k, v)
 
-    def set(self, k, v):
-        if self.get(k) is None:
-            self.r.set(k, v)
-
-    def get(self, k):
-        return self.r.get(k)
-
     def put_node(self, k, v):
-        if self.r.get("node:{0}".format(k)) is not None:
+        if self.nodes[k] is not None:
             return
-
-        self.r.set(
-            "node:{0}".format(k),
-            "{0}:{1}".format(v.lat, v.lon)
-        )
+        self.nodes[k] = v
 
     def put_way(self, k, v):
-        if self.r.lrange("way:{0}".format(k), 0, -1):
+        if self.ways[k] is not None:
             return
-
-        for node in v.nodes:
-            self.r.rpush(
-                "way:{0}".format(k),
-                "node:{0}".format(node.osm_id)
-            )
+        self.ways[k] = v
 
     def put_rel(self, k, v):
-        if self.r.lrange("relation:{0}".format(k), 0, -1):
+        if self.relations[k] is not None:
             return
-
-        for member in v.members:
-            self.r.rpush(
-                "relation:{0}".format(k),
-                "{0}:{1}".format(member.TAG, member.osm_id)
-            )
+        self.relations[k] = v
 
     def get_node(self, k):
-        v = self.r.get("node:{0}".format(k))
-        if v is None:
+        try:
+            return self.nodes[k]
+        except KeyError:
             return None
-
-        lat, lon = NODE_KEY.search(v).group(1, 2)
-        return Node(k, float(lat), float(lon))
 
     def get_way(self, k):
-        v = self.r.lrange("way:{0}".format(k), 0, -1)
-        if not v:
+        try:
+            return self.ways[k]
+        except KeyError:
             return None
-
-        nodes = []
-        for node in v:
-            node_k = WAY_KEY.search(node).group(1)
-            nodes.append(self.get_node(node_k))
-        return Way(k, nodes)
 
     def get_relation(self, k):
-        v = self.r.lrange("relation:{0}".format(k), 0, -1)
-        if not v:
+        try:
+            return self.relations[k]
+        except KeyError:
             return None
 
-        members = []
-        for member in v:
-            member_type, member_id = REL_KEY.search(member).group(1, 2)
-            if member_type == "node":
-                append_value = self.get_node(member_id)
-            elif member_type == "way":
-                append_value = self.get_way(member_id)
-            else:
-                append_value = self.get_relation(member_id)
-            members.append(append_value)
-        return Relation(k, members)
+    def populate_nodes(self, context):
+        for event, elem in context:
+            if elem.tag == "node":
+                osm_id = elem.attrib["id"]
+                lon = elem.attrib["lon"]
+                lat = elem.attrib["lat"]
+                version = elem.attrib["version"]
+                timestamp = elem.attrib["timestamp"]
+                self.nodes[osm_id] = Node(
+                    osm_id,
+                    lon,
+                    lat,
+                    version,
+                    timestamp
+                )
+            if elem.tag == "way" or elem.tag == "relation":
+                break
+            elem.clear()
 
-class Node:
-    TAG = "node"
 
-    def __init__(self, osm_id, lat, lon):
-        self.osm_id = osm_id
-        self.lat = lat
-        self.lon = lon
-
+class OSMData:
     def get_bbox(self):
         return get_bbox_shape(self.bounds())
 
+
+class Node(OSMData):
+    TAG = "node"
+
+    def __init__(self, osm_id, lon, lat, version, timestamp):
+        self.osm_id = osm_id
+        self.lon = lon
+        self.lat = lat
+        self.version = version
+        self.timestamp = timestamp
+
     def bounds(self):
-        return (self.lat, self.lon, self.lat, self.lon)
+        return (self.lon, self.lat, self.lon, self.lat)
 
     def to_xml(self):
-        return ET.Element('node', id=self.osm_id, lat=self.lat, lon=self.lon)
+        return ET.Element(
+            'node',
+            id=self.osm_id,
+            lon=str(self.lon),
+            lat=str(self.lat),
+            version=self.version,
+            timestamp=self.timestamp
+        )
 
     @staticmethod
     def from_xml(xml):
         osm_id = xml.attrib['id']
-        lat = float(xml.attrib['lat'])
         lon = float(xml.attrib['lon'])
-        return Node(osm_id, lat, lon)
+        lat = float(xml.attrib['lat'])
+        timestamp = xml.attrib['timestamp']
+        version = xml.attrib['version']
+        return Node(osm_id, lon, lat, version, timestamp)
 
 
-class Way:
+class Way(OSMData):
     TAG = "way"
 
-    def __init__(self, osm_id, nodes=None):
+    def __init__(self, osm_id, version, timestamp, nodes=None):
         self.osm_id = osm_id
+        self.version = version
+        self.timestamp = timestamp
         self.nodes = nodes or []
-
-    def get_bbox(self):
-        return get_bbox_shape(self.bounds())
 
     def bounds(self):
         return reduce(max_bbox, [node.bounds() for node in self.nodes])
 
     def to_xml(self):
-        way_root = ET.Element('way', id=self.osm_id)
+        way_root = ET.Element(
+            'way',
+            id=self.osm_id,
+            version=self.version,
+            timestamp=self.timestamp
+        )
+
         for node in self.nodes:
             ET.SubElement(way_root, 'nd', ref=node.osm_id)
         return way_root
@@ -148,6 +148,8 @@ class Way:
     @staticmethod
     def from_xml(xml, refs):
         osm_id = xml.attrib['id']
+        timestamp = xml.attrib['timestamp']
+        version = xml.attrib['version']
         nodes = []
         for node in xml:
             if node.tag == "nd":
@@ -155,29 +157,29 @@ class Way:
                 if found_node is not None:
                     nodes.append(found_node)
         if nodes:
-            return Way(osm_id, nodes)
-        else:
-            return None
+            return Way(osm_id, version, timestamp, nodes)
 
 
-class Relation:
+class Relation(OSMData):
     TAG = "relation"
 
-    def __init__(self, osm_id, members=None):
+    def __init__(self, osm_id, version, timestamp, members=None):
         self.osm_id = osm_id
+        self.version = version
+        self.timestamp = timestamp
         self.members = members or []
 
-    def get_bbox(self):
-        return get_bbox_shape(self.bounds())
-
     def bounds(self):
-        try:
-            return reduce(max_bbox, [member.bounds() for member in self.members])
-        except TypeError:
-            import pdb; pdb.set_trace()
+        return reduce(max_bbox, [member.bounds() for member in self.members])
 
     def to_xml(self):
-        rel_root = ET.Element('relation', id=self.osm_id)
+        rel_root = ET.Element(
+            'relation',
+            id=self.osm_id,
+            version=self.version,
+            timestamp=self.timestamp
+        )
+
         for member in self.members:
             ET.SubElement(rel_root, member.tag, ref=member.osm_id)
         return rel_root
@@ -185,6 +187,8 @@ class Relation:
     @staticmethod
     def from_xml(xml, refs):
         osm_id = xml.attrib['id']
+        timestamp = xml.attrib['timestamp']
+        version = xml.attrib['version']
         members = []
         for member in xml:
             if member.tag == "member":
@@ -199,9 +203,7 @@ class Relation:
                     if found_member is not None:
                         members.append(found_member)
         if members:
-            return Relation(osm_id, members)
-        else:
-            return None
+            return Relation(osm_id, version, timestamp, members)
 
 
 class OSM:
@@ -219,11 +221,12 @@ class OSM:
         return osm_root
 
     @staticmethod
-    def from_xml(xml):
+    def from_xml(xml, context):
         elements = []
         refs = Refs()
+        refs.populate_nodes(context)
+
         for element in xml:
-            print "On element: " + element.tag
             func = osm_func(
                 element.tag,
                 lambda: Node.from_xml(element),
@@ -232,8 +235,9 @@ class OSM:
             )
             if func:
                 value = func()
-                refs.put(value.osm_id, value)
-                elements.append(value)
+                if value:
+                    refs.put(value.osm_id, value)
+                    elements.append(value)
         return OSM(elements)
 
 
@@ -284,15 +288,7 @@ class OSMChange:
             else:
                 print "Getting second refs"
             first = False
-            for event, elem in context:
-                if elem.tag == "node":
-                    refs.set(
-                        "node:{0}".format(elem.attrib["id"]),
-                        "{0}:{1}".format(elem.attrib["lat"], elem.attrib["lon"])
-                    )
-                if elem.tag == "way" or elem.tag == "relation":
-                    break
-                elem.clear()
+            refs.populate_nodes(context)
 
         print "Parsing changes"
         for change_t in xml.getroot():
