@@ -30,7 +30,6 @@ class Refs:
         elif isinstance(v, Relation):
             self.put_rel(k, v)
 
-
     def put_node(self, k, v):
         if k not in self.nodes:
             self.nodes[k] = v
