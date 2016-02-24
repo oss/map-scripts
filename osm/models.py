@@ -1,8 +1,4 @@
 from osm import max_bbox, osm_func, osc_func, get_bbox_shape
-
-import re
-import redis
-
 import xml.etree.ElementTree as ET
 
 
