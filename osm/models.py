@@ -60,8 +60,8 @@ class Refs:
         for event, elem in context:
             if elem.tag == "node":
                 osm_id = elem.attrib["id"]
-                lon = elem.attrib["lon"]
-                lat = elem.attrib["lat"]
+                lon = float(elem.attrib["lon"])
+                lat = float(elem.attrib["lat"])
                 version = elem.attrib["version"]
                 timestamp = elem.attrib["timestamp"]
                 self.nodes[osm_id] = Node(
@@ -174,7 +174,7 @@ class Relation(OSMData):
         )
 
         for member in self.members:
-            ET.SubElement(rel_root, member.tag, ref=member.osm_id)
+            ET.SubElement(rel_root, member.TAG, ref=member.osm_id)
         return rel_root
 
     @staticmethod
@@ -263,7 +263,7 @@ class OSMChange:
             modifications.append(modification.to_xml())
 
         for deletion in self.delete:
-            deletions.append(delete.to_xml())
+            deletions.append(deletion.to_xml())
 
         return osc_root
 

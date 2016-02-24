@@ -39,9 +39,9 @@ PENDING = '/army/pending'
 TMPFILE = '/tmp/map_scripts_tmp.osm'
 
 
-def print_ET(root):
+def pretty_ET(root):
     """Pretty print xml from ElementTree"""
-    print MD.parseString(ET.tostring(root)).toprettyxml(),
+    return MD.parseString(ET.tostring(root)).toprettyxml()
 
 
 def send_mail(changes, address):
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--no-send-mail',
                         action='store_true',
                         help='Add to stop mail sending')
-    parser.add_argument('-t', '--temp-file',
+    parser.add_argument('-t', '--tmp-file',
                         default=TMPFILE,
                         help='Location of temp file')
     args = parser.parse_args()
@@ -198,7 +198,7 @@ if __name__ == '__main__':
     print "Writing intersections to disk"
     pending_filename = lowest_avail_filename(args.pending)
     with open(pending_filename, 'w') as f:
-        f.write(ET.tostring(ask_changes.to_xml()))
+        f.write(pretty_ET(ask_changes.to_xml()))
 
     print "Getting non-intersecting changes"
     apply_cmd = osmosis.apply_diff(args.nj_old, pending_filename, args.tmp_file)
@@ -206,8 +206,10 @@ if __name__ == '__main__':
 
     print "Writing non-intersecting changes to disk"
     apply_filename = lowest_avail_filename(args.changes)
-    diff_cmd = osmosis.diff(arg.tmp_file, args.nj_latest, apply_filename)
+    diff_cmd = osmosis.diff(args.tmp_file, args.nj_latest, apply_filename)
     subprocess.check_call(diff_cmd)
+
+    os.remove(args.tmp_file)
 
     if not args.no_send_mail:
         print "Sending mail"

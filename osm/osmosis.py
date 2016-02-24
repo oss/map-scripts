@@ -3,8 +3,10 @@ def diff(file1, file2, output, format="pbf"):
         'osmosis',
         '--read-{0}'.format(format),
         'file={0}'.format(file1),
+        '--sort',
         '--read-{0}'.format(format),
         'file={0}'.format(file2),
+        '--sort',
         '--derive-change',
         '--simplify-change',
         '--sort-change',
@@ -17,10 +19,12 @@ def apply_diff(file1, diff_file, output=None):
         'osmosis',
         '--read-xml-change',
         'file={0}'.format(diff_file),
+        '--sort-change',
         '--read-pbf',
         'file={0}'.format(file1),
         '--sort',
         '--apply-change',
+        '--sort',
         '--write-pbf',
         'file={0}'.format(output if output is not None else file1)
     ]
