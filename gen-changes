@@ -173,9 +173,10 @@ if __name__ == '__main__':
 
     print "Parsing diff"
     changes = OSMChange.from_xml(
-            ET.parse(args.diff),
-            ET.iterparse(args.nj_latest_small),
-            ET.iterparse(args.nj_old_small))
+        ET.parse(args.diff),
+        ET.parse(args.nj_latest_small),
+        ET.parse(args.nj_old_small)
+    )
 
     ask_create = []
     ask_modify = []

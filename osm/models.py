@@ -57,131 +57,115 @@ class Refs:
             return None
 
     def populate_nodes(self, context):
-        for event, elem in context:
+        for elem in context.getroot():
             if elem.tag == "node":
-                osm_id = elem.attrib["id"]
-                lon = float(elem.attrib["lon"])
-                lat = float(elem.attrib["lat"])
-                version = elem.attrib["version"]
-                timestamp = elem.attrib["timestamp"]
-                self.nodes[osm_id] = Node(
-                    osm_id,
-                    lon,
-                    lat,
-                    version,
-                    timestamp
-                )
+                node = Node.from_xml(elem)
+                self.put_node(node.osm_id, node)
             if elem.tag == "way" or elem.tag == "relation":
                 break
-            elem.clear()
 
 
-class OSMData:
+class OSMData(object):
+    def __init__(self, tags=None, **kwargs):
+        self.tags = tags or {}
+        self.kwargs = kwargs
+
+    def tags_to_xml(self, root):
+        for tag in self.tags:
+            ET.SubElement(root, 'tag', k=tag, v=tags[tag])
+
     def get_bbox(self):
         return get_bbox_shape(self.bounds())
 
+    @staticmethod
+    def tags_from_xml(xml):
+        return {
+            tag.attrib['k']: tag.attrib['v']
+            for tag in xml
+            if tag.tag == "tag"
+        }
 
 class Node(OSMData):
     TAG = "node"
 
-    def __init__(self, osm_id, lon, lat, version, timestamp):
-        self.osm_id = osm_id
-        self.lon = lon
-        self.lat = lat
-        self.version = version
-        self.timestamp = timestamp
+    def __init__(self, tags=None, **kwargs):
+        super(Node, self).__init__(tags, **kwargs)
+        self.osm_id = kwargs["id"]
+        self.lon = float(kwargs["lon"])
+        self.lat = float(kwargs["lat"])
 
     def bounds(self):
         return (self.lon, self.lat, self.lon, self.lat)
 
     def to_xml(self):
-        return ET.Element(
-            'node',
-            id=self.osm_id,
-            lon=str(self.lon),
-            lat=str(self.lat),
-            version=self.version,
-            timestamp=self.timestamp
-        )
+        node_root = ET.Element('node', self.kwargs)
+        self.tags_to_xml(node_root)
+        return node_root
 
     @staticmethod
     def from_xml(xml):
-        osm_id = xml.attrib['id']
-        lon = float(xml.attrib['lon'])
-        lat = float(xml.attrib['lat'])
-        timestamp = xml.attrib['timestamp']
-        version = xml.attrib['version']
-        return Node(osm_id, lon, lat, version, timestamp)
+        tags = OSMData.tags_from_xml(xml)
+        return Node(tags, **xml.attrib)
 
 
 class Way(OSMData):
     TAG = "way"
 
-    def __init__(self, osm_id, version, timestamp, nodes=None):
-        self.osm_id = osm_id
-        self.version = version
-        self.timestamp = timestamp
+    def __init__(self, nodes=None, tags=None, **kwargs):
+        super(Way, self).__init__(tags, **kwargs)
+        self.osm_id = kwargs["id"]
         self.nodes = nodes or []
 
     def bounds(self):
         return reduce(max_bbox, [node.bounds() for node in self.nodes])
 
     def to_xml(self):
-        way_root = ET.Element(
-            'way',
-            id=self.osm_id,
-            version=self.version,
-            timestamp=self.timestamp
-        )
+        way_root = ET.Element('way', self.kwargs)
 
         for node in self.nodes:
             ET.SubElement(way_root, 'nd', ref=node.osm_id)
+
+        self.tags_to_xml(way_root)
+
         return way_root
 
     @staticmethod
     def from_xml(xml, refs):
-        osm_id = xml.attrib['id']
-        timestamp = xml.attrib['timestamp']
-        version = xml.attrib['version']
         nodes = []
-        for node in xml:
-            if node.tag == "nd":
-                found_node = refs.get_node(node.attrib['ref'])
+        tags = OSMData.tags_from_xml(xml)
+        for e in xml:
+            if e.tag == "nd":
+                found_node = refs.get_node(e.attrib['ref'])
                 if found_node is not None:
                     nodes.append(found_node)
         if nodes:
-            return Way(osm_id, version, timestamp, nodes)
+            return Way(nodes, tags, **xml.attrib)
 
 
 class Relation(OSMData):
     TAG = "relation"
 
-    def __init__(self, osm_id, version, timestamp, members=None):
-        self.osm_id = osm_id
-        self.version = version
-        self.timestamp = timestamp
+    def __init__(self, members=None, tags=None, **kwargs):
+        super(Relation, self).__init__(tags, **kwargs)
+        self.osm_id = kwargs["id"]
         self.members = members or []
 
     def bounds(self):
         return reduce(max_bbox, [member.bounds() for member in self.members])
 
     def to_xml(self):
-        rel_root = ET.Element(
-            'relation',
-            id=self.osm_id,
-            version=self.version,
-            timestamp=self.timestamp
-        )
+        rel_root = ET.Element('relation', self.kwargs)
 
         for member in self.members:
             ET.SubElement(rel_root, member.TAG, ref=member.osm_id)
+
+        self.tags_to_xml(rel_root)
+
         return rel_root
 
     @staticmethod
     def from_xml(xml, refs):
-        osm_id = xml.attrib['id']
-        timestamp = xml.attrib['timestamp']
-        version = xml.attrib['version']
+        tags = OSMData.tags_from_xml(xml)
         members = []
         for member in xml:
             if member.tag == "member":
@@ -196,7 +180,7 @@ class Relation(OSMData):
                     if found_member is not None:
                         members.append(found_member)
         if members:
-            return Relation(osm_id, version, timestamp, members)
+            return Relation(members, tags, **xml.attrib)
 
 
 class OSM:
@@ -268,19 +252,14 @@ class OSMChange:
         return osc_root
 
     @staticmethod
-    def from_xml(xml, new_context, old_context):
+    def from_xml(xml, *contexts):
         create = []
         modify = []
         delete = []
         refs = Refs()
 
-        first = True
-        for context in [new_context, old_context]:
-            if first:
-                print "Getting first refs"
-            else:
-                print "Getting second refs"
-            first = False
+        for i, context in enumerate(contexts):
+            print "Parsing refs {0} of {1}".format(i + 1, len(contexts))
             refs.populate_nodes(context)
 
         print "Parsing changes"
