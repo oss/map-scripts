@@ -67,30 +67,34 @@ class Refs:
 
 class OSMData(object):
     def __init__(self, tags=None, **kwargs):
+        self.osm_id = kwargs["id"]
+        del kwargs["id"]
+
         self.tags = tags or {}
         self.kwargs = kwargs
 
     def tags_to_xml(self, root):
         for tag in self.tags:
-            ET.SubElement(root, 'tag', k=tag, v=tags[tag])
+            ET.SubElement(root, 'tag', k=tag, v=self.tags[tag])
 
     def get_bbox(self):
         return get_bbox_shape(self.bounds())
 
     @staticmethod
     def tags_from_xml(xml):
-        return {
-            tag.attrib['k']: tag.attrib['v']
-            for tag in xml
-            if tag.tag == "tag"
-        }
+        tags = {}
+        for tag in xml:
+            if tag.tag == "tag":
+                tags[tag.attrib['k']] = tag.attrib['v']
+        return tags
+
 
 class Node(OSMData):
     TAG = "node"
 
     def __init__(self, tags=None, **kwargs):
         super(Node, self).__init__(tags, **kwargs)
-        self.osm_id = kwargs["id"]
+
         self.lon = float(kwargs["lon"])
         self.lat = float(kwargs["lat"])
 
@@ -98,7 +102,7 @@ class Node(OSMData):
         return (self.lon, self.lat, self.lon, self.lat)
 
     def to_xml(self):
-        node_root = ET.Element('node', self.kwargs)
+        node_root = ET.Element('node', id=self.osm_id, **self.kwargs)
         self.tags_to_xml(node_root)
         return node_root
 
@@ -113,14 +117,13 @@ class Way(OSMData):
 
     def __init__(self, nodes=None, tags=None, **kwargs):
         super(Way, self).__init__(tags, **kwargs)
-        self.osm_id = kwargs["id"]
         self.nodes = nodes or []
 
     def bounds(self):
         return reduce(max_bbox, [node.bounds() for node in self.nodes])
 
     def to_xml(self):
-        way_root = ET.Element('way', self.kwargs)
+        way_root = ET.Element('way', id=self.osm_id, **self.kwargs)
 
         for node in self.nodes:
             ET.SubElement(way_root, 'nd', ref=node.osm_id)
@@ -147,17 +150,16 @@ class Relation(OSMData):
 
     def __init__(self, members=None, tags=None, **kwargs):
         super(Relation, self).__init__(tags, **kwargs)
-        self.osm_id = kwargs["id"]
         self.members = members or []
 
     def bounds(self):
-        return reduce(max_bbox, [member.bounds() for member in self.members])
+        return reduce(max_bbox, [member.bounds() for member, role in self.members])
 
     def to_xml(self):
-        rel_root = ET.Element('relation', self.kwargs)
+        rel_root = ET.Element('relation', id=self.osm_id, **self.kwargs)
 
-        for member in self.members:
-            ET.SubElement(rel_root, member.TAG, ref=member.osm_id)
+        for member, role in self.members:
+            ET.SubElement(rel_root, "member", type=member.TAG, ref=member.osm_id, role=role)
 
         self.tags_to_xml(rel_root)
 
@@ -178,7 +180,7 @@ class Relation(OSMData):
                 if ref_get:
                     found_member = ref_get(member.attrib['ref'])
                     if found_member is not None:
-                        members.append(found_member)
+                        members.append((found_member, member.attrib['role']))
         if members:
             return Relation(members, tags, **xml.attrib)
 

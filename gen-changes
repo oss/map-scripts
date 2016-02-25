@@ -199,7 +199,7 @@ if __name__ == '__main__':
     print "Writing intersections to disk"
     pending_filename = lowest_avail_filename(args.pending)
     with open(pending_filename, 'w') as f:
-        f.write(pretty_ET(ask_changes.to_xml()))
+        f.write(pretty_ET(ask_changes.to_xml()).encode('utf-8'))
 
     print "Getting non-intersecting changes"
     apply_cmd = osmosis.apply_diff(args.nj_old, pending_filename, args.tmp_file)
