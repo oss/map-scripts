@@ -1,32 +1,55 @@
-#!/bin/bash
+#!/usr/bin/env python
 
-LOCKDIR=/var/lock/maps
-LOCK=$LOCKDIR/apply-changes
+import os.path
+import shutil
+import subprocess
+import sys
 
-if [ -f $LOCK ]; then
-    echo "Someone's already applying changes! Check /var/lock/maps/apply-changes"
-    exit 1
-fi
-touch $LOCK
+LOCKDIR = "/var/lock/maps"
+LOCK = os.path.join(LOCKDIR, "apply-changes")
 
-ERROR=false
+CHANGES ="/army/changes"
 
-for change in /army/changes/*;
-do
-    changename=`basename $change`
-    if [ $changename = '*' ]; then
-        break
-    fi
-    osm2pgsql --append --slim -d gis -C 1600 --number-processes 3 -e0-18 -o /army/dirty-tiles-$changename $change || continue && ERROR=true
-    if [ ! -f /army/dirty-tiles ]; then
-        mv /army/dirty-tiles-$changename /army/dirty-tiles
-    else
-        cat /army/dirty-tiles-$changename >> /army/dirty-tiles
-        rm -f /army/dirty-tiles-$changename
-    fi
-    rm -f $change
-done
+DTILES = "/army/dirty-tiles"
+DTILES_SINGLE = DTILES + "-{0}"
 
-rm $LOCK
+if __name__ == "__main__":
+    if os.path.isfile(LOCK):
+        print "Someone's already applying changes! Check {0}".format(LOCK)
+        sys.exit(1)
 
-$ERROR && echo "There were some errors"
+    if os.path.isfile(DTILES):
+        os.remove(DTILES)
+
+    for change in [os.path.join(CHANGES, change_path) for change_path in os.listdir(CHANGES)]:
+        changename = os.path.splitext(os.path.basename(change))[0]
+        d_t_location = DTILES_SINGLE.format(changename)
+        osm2pgsql_cmd = [
+            "osm2pgsql",
+            "--append",
+            "--slim",
+            "-d",
+            "gis",
+            "-C",
+            "1600",
+            "--number-processes",
+            "3",
+            "-e0-18",
+            "-o",
+            d_t_location
+        ]
+
+        try:
+            subprocess.check_call(osm2pgsql_cmd)
+        except:
+            continue
+
+        if not os.path.isfile(DTILES):
+            shutil.move(d_t_location, DTILES)
+        else:
+            with open(DTILES, 'a') as dt:
+                with open(d_t_location) as dtl:
+                    dt.write(dtl.read())
+                os.remove(dtl)
+        os.remove(change)
+    os.remove(LOCK)
