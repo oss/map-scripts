@@ -1,4 +1,4 @@
-from osm import max_bbox, osm_func, osc_func, get_bbox_shape
+from rutgers_osm import max_bbox, osm_func, osc_func, get_bbox_shape
 import xml.etree.ElementTree as ET
 
 

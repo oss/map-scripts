@@ -16,8 +16,8 @@ from email.Utils import formatdate
 
 import argparse
 
-from osm.models import OSMChange, max_bbox
-import osm.osmosis as osmosis
+from rutgers_osm.models import OSMChange, max_bbox
+import rutgers_osm.osmosis as osmosis
 
 from shapely.wkt import loads
 
