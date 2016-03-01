@@ -17,6 +17,10 @@ def commit_changes():
 
     for path in paths:
         pending = os.path.join(path, PENDING)
-        shutil.move(pending, CHANGES)
+        try:
+            shutil.move(pending, CHANGES)
+        except IOError as e:
+            print "Error: {0}".format(pending)
+            print e
 
     print "Done!"
