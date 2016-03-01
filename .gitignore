@@ -2,3 +2,5 @@ inputfile.txt
 venv
 *.swp
 *.py[co]
+*.egg-info
+dist

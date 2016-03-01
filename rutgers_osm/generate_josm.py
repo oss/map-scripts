@@ -186,7 +186,7 @@ def generate_josm(pairs):
 
     return josm_root
 
-if __name__ == "__main__":
+def generate_josm_main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input_osm", help="The osm file you want to use in OSM")
     parser.add_argument("similarity", help="The similarity level between builings between 0 and 100", type=int)

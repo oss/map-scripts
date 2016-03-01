@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os.path
 import shutil
 import subprocess
@@ -13,7 +11,7 @@ CHANGES ="/army/changes"
 DTILES = "/army/dirty-tiles"
 DTILES_SINGLE = DTILES + "-{0}"
 
-if __name__ == "__main__":
+def apply_changes():
     if os.path.isfile(LOCK):
         print "Someone's already applying changes! Check {0}".format(LOCK)
         sys.exit(1)

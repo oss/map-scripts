@@ -12,7 +12,7 @@ def get_new_jersey(outfile):
     with open(outfile, 'w') as f:
         f.write(urllib2.urlopen(NJ_LATEST).read())
 
-if __name__ == "__main__":
+def get_new_jersey_main():
     if len(sys.argv) != 2:
         print "Usage: get-new-jersey <outfile>"
         sys.exit(1)
