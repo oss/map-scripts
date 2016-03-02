@@ -11,7 +11,7 @@ CHANGES ="/army/changes"
 DTILES = "/army/dirty-tiles"
 DTILES_SINGLE = DTILES + "-{0}"
 
-def apply_changes():
+def apply_changes_main():
     if os.path.isfile(LOCK):
         print "Someone's already applying changes! Check {0}".format(LOCK)
         sys.exit(1)

@@ -109,8 +109,7 @@ def intersects_any(bbox, rutgers):
     return False
 
 
-if __name__ == '__main__':
-
+def generate_changes_main():
     parser = argparse.ArgumentParser(
         description='Create change files based on a bounding box')
     parser.add_argument('-u', '--nj-url',
