@@ -94,10 +94,11 @@ def get_shape_from_file(filename):
 
 
 def get_rutgers():
-    campuses = ["busch", "livingston", "college_avenue", "cook"]
+    fileroot = os.path.join(os.path.dirname(rutgers_osm.__file__), "wkt")
+    campuses = [os.path.join(fileroot, path) for path in os.listdir(fileroot)]
     return filter(
         lambda x: x is not None,
-        [get_shape_from_file(campus + ".wkt") for campus in campuses]
+        [get_shape_from_file(campus) for campus in campuses]
     )
 
 
