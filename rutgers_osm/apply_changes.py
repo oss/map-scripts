@@ -16,7 +16,7 @@ def apply_changes_main():
         print "Someone's already applying changes! Check {0}".format(LOCK)
         sys.exit(1)
 
-    with open(LOCK) as lock:
+    with open(LOCK, 'w+') as lock:
         lock.write(str(os.getpid()))
 
     if os.path.isfile(DTILES):
