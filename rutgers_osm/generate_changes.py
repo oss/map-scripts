@@ -19,6 +19,8 @@ import argparse
 from rutgers_osm.models import OSMChange, max_bbox
 import rutgers_osm.osmosis as osmosis
 
+import rutgers_osm
+
 from shapely.wkt import loads
 
 # URL for latest NJ pbf
