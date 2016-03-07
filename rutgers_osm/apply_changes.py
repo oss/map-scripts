@@ -16,10 +16,14 @@ def apply_changes_main():
         print "Someone's already applying changes! Check {0}".format(LOCK)
         sys.exit(1)
 
+    with open(LOCK) as lock:
+        lock.write(str(os.getpid()))
+
     if os.path.isfile(DTILES):
         os.remove(DTILES)
 
     for change in [os.path.join(CHANGES, change_path) for change_path in os.listdir(CHANGES)]:
+        print "Applying: {0}".format(change)
         changename = os.path.splitext(os.path.basename(change))[0]
         d_t_location = DTILES_SINGLE.format(changename)
         osm2pgsql_cmd = [
